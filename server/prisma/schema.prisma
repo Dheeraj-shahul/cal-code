@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int           @id @default(autoincrement())
+  name       String
+  email      String        @unique
+  timezone   String        @default("Asia/Kolkata")
+  createdAt  DateTime      @default(now())
+  eventTypes EventType[]
+  availability Availability?
+}
+
+model EventType {
+  id              Int       @id @default(autoincrement())
+  userId          Int
+  user            User      @relation(fields: [userId], references: [id])
+  title           String
+  description     String?
+  durationMinutes Int
+  slug            String    @unique
+  bufferMinutes   Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  bookings        Booking[]
+}
+
+model Availability {
+  id       Int                @id @default(autoincrement())
+  userId   Int                @unique
+  user     User               @relation(fields: [userId], references: [id])
+  timezone String             @default("Asia/Kolkata")
+  slots    AvailabilitySlot[]
+}
+
+model AvailabilitySlot {
+  id             Int          @id @default(autoincrement())
+  availabilityId Int
+  availability   Availability @relation(fields: [availabilityId], references: [id])
+  dayOfWeek      Int          // 0=Sunday, 1=Monday ... 6=Saturday
+  startTime      String       // "09:00"
+  endTime        String       // "17:00"
+}
+
+model Booking {
+  id          Int         @id @default(autoincrement())
+  eventTypeId Int
+  eventType   EventType   @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  bookerName  String
+  bookerEmail String
+  startTime   DateTime
+  endTime     DateTime
+  status      BookingStatus @default(UPCOMING)
+  createdAt   DateTime      @default(now())
+}
+
+enum BookingStatus {
+  UPCOMING
+  CANCELLED
+  PAST
+}
