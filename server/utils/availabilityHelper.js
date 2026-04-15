@@ -12,30 +12,50 @@ async function getAvailableSlots(eventTypeId, dateStr) {
   // dateStr = "YYYY-MM-DD"
   const eventType = await prisma.eventType.findUnique({
     where: { id: parseInt(eventTypeId) },
-    include: { user: { include: { availability: { include: { slots: true } } } } },
+    include: {
+      user: {
+        include: {
+          availabilities: {
+            where: { isDefault: true },
+            include: { slots: true, overrides: true }
+          }
+        }
+      }
+    },
   });
 
   if (!eventType) throw new Error('Event type not found');
 
-  const availability = eventType.user.availability;
+  const availability = eventType.user.availabilities[0];
   if (!availability) return [];
 
   const timezone = availability.timezone || 'Asia/Kolkata';
 
   // Parse the requested date in the host timezone
   const requestedDate = parse(dateStr, 'yyyy-MM-dd', new Date());
-  const dayOfWeek = requestedDate.getDay(); // 0=Sun...6=Sat
+  
+  // Check for override on this specific date
+  const override = availability.overrides.find(o => o.date === dateStr);
+  let startH, startM, endH, endM;
 
-  const daySlot = availability.slots.find((s) => s.dayOfWeek === dayOfWeek);
-  if (!daySlot) return [];
+  if (override) {
+    // If override exists but has no start time, they marked it as "Unavailable (All day)"
+    if (!override.startTime || !override.endTime) return [];
+    [startH, startM] = override.startTime.split(':').map(Number);
+    [endH, endM] = override.endTime.split(':').map(Number);
+  } else {
+    // Use regular day slots mapping
+    const dayOfWeek = requestedDate.getDay(); // 0=Sun...6=Sat
+    const daySlot = availability.slots.find((s) => s.dayOfWeek === dayOfWeek);
+    if (!daySlot) return [];
+    [startH, startM] = daySlot.startTime.split(':').map(Number);
+    [endH, endM] = daySlot.endTime.split(':').map(Number);
+  }
 
   // Build all possible time slots on this day
   const duration = eventType.durationMinutes;
   const buffer = eventType.bufferMinutes || 0;
   const step = duration + buffer;
-
-  const [startH, startM] = daySlot.startTime.split(':').map(Number);
-  const [endH, endM] = daySlot.endTime.split(':').map(Number);
 
   // Build window start/end in host timezone
   const windowStartLocal = new Date(requestedDate);
@@ -47,10 +67,12 @@ async function getAvailableSlots(eventTypeId, dateStr) {
   const windowStartUTC = fromZonedTime(windowStartLocal, timezone);
   const windowEndUTC = fromZonedTime(windowEndLocal, timezone);
 
-  // Fetch existing (non-cancelled) bookings that overlap this window
+  // Fetch existing (non-cancelled) bookings that overlap this window for ALL event types under this user
   const existingBookings = await prisma.booking.findMany({
     where: {
-      eventTypeId: parseInt(eventTypeId),
+      eventType: {
+        userId: eventType.userId
+      },
       status: { not: 'CANCELLED' },
       startTime: { lt: windowEndUTC },
       endTime: { gt: windowStartUTC },
@@ -70,7 +92,9 @@ async function getAvailableSlots(eventTypeId, dateStr) {
       (b) => cursor < b.endTime && slotEnd > b.startTime
     );
 
-    if (!hasOverlap) {
+    const isFuture = cursor > new Date();
+
+    if (!hasOverlap && isFuture) {
       slots.push({ start: cursor.toISOString(), end: slotEnd.toISOString() });
     }
 

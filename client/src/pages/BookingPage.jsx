@@ -28,7 +28,13 @@ export default function BookingPage() {
           getAvailability(),
         ])
         setEventType(etRes.data)
-        setAvailability(avRes.data)
+        
+        // Find default schedule, or fallback to first one
+        const activeSched = Array.isArray(avRes.data)
+           ? (avRes.data.find(a => a.isDefault) || avRes.data[0])
+           : avRes.data;
+           
+        setAvailability(activeSched)
       } catch (e) {
         console.error(e)
       } finally {
@@ -38,12 +44,44 @@ export default function BookingPage() {
     load()
   }, [slug])
 
+  // Auto-select today's date on initial load
+  useEffect(() => {
+    if (eventType && availability && !selectedDate) {
+      const today = new Date();
+      setSelectedDate(today);
+      setSelectedSlot(null);
+      setSlotsLoading(true);
+      const dateStr = format(today, 'yyyy-MM-dd');
+      getAvailableSlots(eventType.id, dateStr)
+        .then(res => {
+          setSlots(res.data);
+          setSlotsLoading(false);
+        })
+        .catch(e => {
+          console.error(e);
+          setSlotsLoading(false);
+        });
+    }
+  }, [eventType, availability]);
+
   const availableDays = availability?.slots?.map((s) => s.dayOfWeek) || []
 
   const tileDisabled = ({ date, view }) => {
     if (view !== 'month') return false
     const isPast = date < new Date(new Date().setHours(0, 0, 0, 0))
-    const isUnavailable = !availableDays.includes(date.getDay())
+    const dateStr = format(date, 'yyyy-MM-dd')
+    
+    let isUnavailable = !availableDays.includes(date.getDay())
+    
+    // Check Date Overrides on public calendar!
+    if (availability?.overrides?.length > 0) {
+      const override = availability.overrides.find(o => o.date === dateStr)
+      if (override) {
+        if (!override.startTime || !override.endTime) isUnavailable = true;
+        else isUnavailable = false; 
+      }
+    }
+
     return isPast || isUnavailable
   }
 
@@ -84,7 +122,7 @@ export default function BookingPage() {
       <div className="booking-card">
         {/* LEFT SIDEBAR */}
         <div className="booking-sidebar">
-          <p className="host-name">👤 {eventType.user?.name}</p>
+          <p className="host-name"><i class="fa-regular fa-user"></i> {eventType.user?.name}</p>
           <h1>{eventType.title}</h1>
           {eventType.description && (
             <p style={{ fontSize: 13, color: 'var(--clr-muted)', marginBottom: 20 }}>{eventType.description}</p>
@@ -119,70 +157,81 @@ export default function BookingPage() {
           </div>
         </div>
 
-        {/* RIGHT MAIN */}
-        <div className="booking-main">
-          {!selectedSlot ? (
-            <>
-              <h2>Select a Date & Time</h2>
+        {/* DYNAMIC RIGHT CONTENT */}
+        {/* DYNAMIC RIGHT CONTENT */}
+        <div className="booking-dynamic-container" style={{ position: 'relative', overflow: 'hidden' }}>
+          
+          {/* Calendar & Time Selection View */}
+          <div style={{
+            display: 'flex', flex: 1, width: '100%', 
+            transition: 'transform 0.3s ease, opacity 0.3s ease',
+            transform: selectedSlot ? 'translateX(-100%)' : 'translateX(0)',
+            opacity: selectedSlot ? 0 : 1,
+            position: selectedSlot ? 'absolute' : 'relative',
+            pointerEvents: selectedSlot ? 'none' : 'auto'
+          }}>
+            <div className="booking-main calendar-col" style={{ borderRight: selectedDate ? '1px solid var(--clr-border)' : 'none' }}>
               <Calendar
                 onChange={handleDateChange}
                 value={selectedDate}
                 tileDisabled={tileDisabled}
                 minDate={new Date()}
               />
-              {selectedDate && (
-                <div style={{ marginTop: 20 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
-                    Available times for {format(selectedDate, 'MMMM d')}
-                  </h3>
-                  {slotsLoading ? (
-                    <div className="spinner">Loading slots...</div>
-                  ) : slots.length === 0 ? (
-                    <p style={{ color: 'var(--clr-muted)', fontSize: 14 }}>No available slots for this day.</p>
-                  ) : (
-                    <div className="time-slots">
-                      {slots.map((slot) => (
-                        <button
-                          key={slot.start}
-                          className="time-slot-btn"
-                          onClick={() => setSelectedSlot(slot)}
-                        >
-                          {format(new Date(slot.start), 'h:mm a')}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => setSelectedSlot(null)}>← Back</button>
-                <h2 style={{ margin: 0 }}>Enter your details</h2>
+            </div>
+            {selectedDate && (
+              <div className="booking-time-col">
+                <p className="time-col-header">{format(selectedDate, 'EEEE d')}</p>
+                {slotsLoading ? (
+                  <div className="spinner">...</div>
+                ) : slots.length === 0 ? (
+                  <p style={{ color: 'var(--clr-muted)', fontSize: 14 }}>No slots available.</p>
+                ) : (
+                  <div className="time-slots-vertical">
+                    {slots.map((slot) => (
+                      <button
+                        key={slot.start}
+                        className="time-slot-btn-cal"
+                        onClick={() => setSelectedSlot(slot)}
+                      >
+                        <span className="dot"></span>
+                        {format(new Date(slot.start), 'HH:mm')}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              {error && <div className="error-msg">{error}</div>}
-              <form onSubmit={handleBook}>
-                <div className="form-group">
-                  <label>Your Name *</label>
-                  <input className="form-control" placeholder="Jane Doe" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label>Email Address *</label>
-                  <input className="form-control" type="email" placeholder="jane@example.com" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-                </div>
-                <div style={{ background: 'var(--clr-bg)', borderRadius: 'var(--radius)', padding: '12px 16px', marginBottom: 20, fontSize: 13 }}>
-                  <strong>📅 {format(selectedDate, 'EEEE, MMMM d, yyyy')}</strong><br/>
-                  <span style={{ color: 'var(--clr-muted)' }}>
-                    {format(new Date(selectedSlot.start), 'h:mm a')} – {format(new Date(selectedSlot.end), 'h:mm a')} · {eventType.durationMinutes} min
-                  </span>
-                </div>
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={booking}>
-                  {booking ? 'Confirming...' : 'Confirm Booking'}
-                </button>
-              </form>
-            </>
-          )}
+            )}
+          </div>
+
+          {/* Booking Form View */}
+          <div className="booking-main form-col" style={{
+            position: selectedSlot ? 'relative' : 'absolute',
+            top: 0, left: 0, width: '100%', height: '100%',
+            transition: 'transform 0.3s ease, opacity 0.3s ease',
+            transform: selectedSlot ? 'translateX(0)' : 'translateX(100%)',
+            opacity: selectedSlot ? 1 : 0,
+            pointerEvents: selectedSlot ? 'auto' : 'none',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedSlot(null)}>← Back</button>
+              <h2 style={{ margin: 0 }}>Enter your details</h2>
+            </div>
+            {error && <div className="error-msg">{error}</div>}
+            <form onSubmit={handleBook}>
+              <div className="form-group">
+                <label>Your Name *</label>
+                <input className="form-control" placeholder="Jane Doe" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>Email Address *</label>
+                <input className="form-control" type="email" placeholder="jane@example.com" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={booking}>
+                {booking ? 'Confirming...' : 'Confirm Booking'}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

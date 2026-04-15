@@ -13,7 +13,9 @@ export const deleteEventType = (id) => api.delete(`/event-types/${id}`)
 
 // ── Availability ─────────────────────────────────────────────
 export const getAvailability = () => api.get('/availability')
-export const updateAvailability = (data) => api.put('/availability', data)
+export const createAvailability = (data) => api.post('/availability', data)
+export const updateAvailability = (id, data) => api.put(`/availability/${id}`, data)
+export const deleteAvailability = (id) => api.delete(`/availability/${id}`)
 
 // ── Bookings ─────────────────────────────────────────────────
 export const getAvailableSlots = (eventTypeId, date) =>

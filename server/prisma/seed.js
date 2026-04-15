@@ -60,11 +60,13 @@ async function main() {
   console.log(`✅ Event types: ${eventTypes.map((e) => e.title).join(', ')}`);
 
   // Create availability (Mon-Fri, 9AM-5PM IST)
-  const existingAvailability = await prisma.availability.findUnique({ where: { userId: user.id } });
+  const existingAvailability = await prisma.availability.findFirst({ where: { userId: user.id } });
   if (!existingAvailability) {
     await prisma.availability.create({
       data: {
         userId: user.id,
+        name: 'Working hours',
+        isDefault: true,
         timezone: 'Asia/Kolkata',
         slots: {
           create: [1, 2, 3, 4, 5].map((day) => ({

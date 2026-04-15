@@ -44,7 +44,7 @@ export default function Bookings() {
         <div className="spinner">Loading...</div>
       ) : bookings.length === 0 ? (
         <div className="card empty-state">
-          <div className="empty-state-icon">{tab === 'UPCOMING' ? '📭' : tab === 'PAST' ? '📁' : '🚫'}</div>
+          <div className="empty-state-icon">{tab === 'UPCOMING' ? '📭' : tab === 'PAST' ? '📁' : <i class="fa-solid fa-box-open"></i>}</div>
           <h3>No {tab.toLowerCase()} bookings</h3>
           <p>{tab === 'UPCOMING' ? 'Share your booking link to receive meetings' : 'No bookings to show here'}</p>
         </div>
@@ -65,7 +65,7 @@ export default function Bookings() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {tab === 'UPCOMING' && (
-                  <span className="badge badge-green">Upcoming</span>
+                  <span className="badge badge-grey">Upcoming</span>
                 )}
                 {tab === 'PAST' && (
                   <span className="badge badge-gray">Past</span>

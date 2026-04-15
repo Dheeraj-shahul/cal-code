@@ -6,6 +6,7 @@ import Availability from './pages/Availability'
 import Bookings from './pages/Bookings'
 import BookingPage from './pages/BookingPage'
 import Confirmation from './pages/Confirmation'
+import PublicProfile from './pages/PublicProfile'
 
 function AdminLayout({ children }) {
   return (
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/bookings" element={<AdminLayout><Bookings /></AdminLayout>} />
 
         {/* Public Routes */}
+        <Route path="/alex-johnson" element={<PublicProfile />} />
         <Route path="/book/:slug" element={<BookingPage />} />
         <Route path="/book/:slug/confirmation" element={<Confirmation />} />
       </Routes>

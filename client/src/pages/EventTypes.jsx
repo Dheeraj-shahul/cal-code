@@ -15,6 +15,7 @@ export default function EventTypes() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [activeDropdown, setActiveDropdown] = useState(null)
 
   const load = async () => {
     try {
@@ -24,7 +25,12 @@ export default function EventTypes() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { 
+    load() 
+    const closeDropdown = () => setActiveDropdown(null)
+    window.addEventListener('click', closeDropdown)
+    return () => window.removeEventListener('click', closeDropdown)
+  }, [])
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setError(''); setShowModal(true) }
   const openEdit = (et) => { setEditing(et); setForm({ title: et.title, description: et.description || '', durationMinutes: et.durationMinutes, slug: et.slug, bufferMinutes: et.bufferMinutes || 0 }); setError(''); setShowModal(true) }
@@ -82,36 +88,54 @@ export default function EventTypes() {
           <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={openCreate}>Create Event Type</button>
         </div>
       ) : (
-        <div className="grid-list">
+        <div className="event-list-container">
           {eventTypes.map((et) => (
-            <div className="event-card" key={et.id}>
-              <div className="event-card-left">
-                <div className="event-dot">{et.durationMinutes}'</div>
-                <div className="event-card-info">
+            <div className="event-list-item" key={et.id}>
+              <div className="event-list-info">
+                <div className="event-list-title">
                   <h3>{et.title}</h3>
-                  <p>{et.description || 'No description'}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                    <span className="link-copy">/book/{et.slug}</span>
-                    <button className="btn btn-icon btn-sm" title="Copy link" onClick={() => copyLink(et.slug)}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                      </svg>
-                    </button>
-                  </div>
+                  <span>/book/{et.slug}</span>
+                </div>
+                <div className="event-list-badge">
+                  <i className="fa-regular fa-clock"></i>
+                  {et.durationMinutes}m
                 </div>
               </div>
-              <div className="event-card-actions">
-                <span className="badge badge-purple">{et.durationMinutes} min</span>
-                <button className="btn btn-icon btn-sm" title="Edit" onClick={() => openEdit(et)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
+              <div className="event-list-actions">
+                <div className="event-list-switch">
+                  <span style={{ fontSize: 13, color: 'var(--clr-muted)' }}>Hidden</span>
+                  <label className="switch" style={{ transform: 'scale(0.85)', margin: 0 }}>
+                    <input type="checkbox" defaultChecked={false} />
+                    <span className="slider round"></span>
+                  </label>
+                </div>
+                <button className="btn btn-icon btn-sm" title="Copy link" onClick={() => copyLink(et.slug)} style={{ padding: 6, width: 32, height: 32 }}>
+                  <i className="fa-regular fa-copy" style={{ fontSize: 13 }}></i>
                 </button>
-                <button className="btn btn-icon btn-sm" title="Delete" style={{ color: 'var(--clr-danger)' }} onClick={() => handleDelete(et.id)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                  </svg>
+                <button className="btn btn-icon btn-sm" title="View" onClick={() => window.open(bookingUrl(et.slug), '_blank')} style={{ padding: 6, width: 32, height: 32 }}>
+                  <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: 12 }}></i>
                 </button>
+                <div style={{ position: 'relative' }}>
+                  <button 
+                    className="btn btn-icon btn-sm" 
+                    title="Menu" 
+                    onClick={(e) => { e.stopPropagation(); setActiveDropdown(activeDropdown === et.id ? null : et.id); }} 
+                    style={{ padding: 6, width: 32, height: 32 }}
+                  >
+                    <i className="fa-solid fa-ellipsis" style={{ fontSize: 14 }}></i>
+                  </button>
+                  {activeDropdown === et.id && (
+                    <div className="custom-dropdown" onClick={(e) => e.stopPropagation()}>
+                       <button onClick={() => { setActiveDropdown(null); openEdit(et); }}><i className="fa-solid fa-pen"></i> Edit</button>
+                       <button onClick={() => { setActiveDropdown(null); }}><i className="fa-regular fa-clone"></i> Duplicate</button>
+                       <button onClick={() => { setActiveDropdown(null); }}><i className="fa-solid fa-code"></i> Embed</button>
+                       <div className="dropdown-divider"></div>
+                       <button style={{color: 'var(--clr-text)'}} /* Cal.com delete uses white text natively in this view */ onClick={() => { setActiveDropdown(null); handleDelete(et.id); }}>
+                         <i className="fa-regular fa-trash-can"></i> Delete
+                       </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

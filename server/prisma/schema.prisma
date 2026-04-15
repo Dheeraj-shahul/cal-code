@@ -14,7 +14,7 @@ model User {
   timezone   String        @default("Asia/Kolkata")
   createdAt  DateTime      @default(now())
   eventTypes EventType[]
-  availability Availability?
+  availabilities Availability[]
 }
 
 model EventType {
@@ -32,20 +32,32 @@ model EventType {
 }
 
 model Availability {
-  id       Int                @id @default(autoincrement())
-  userId   Int                @unique
-  user     User               @relation(fields: [userId], references: [id])
-  timezone String             @default("Asia/Kolkata")
-  slots    AvailabilitySlot[]
+  id        Int                @id @default(autoincrement())
+  userId    Int
+  user      User               @relation(fields: [userId], references: [id])
+  name      String             @default("Working hours")
+  isDefault Boolean            @default(false)
+  timezone  String             @default("Asia/Kolkata")
+  slots     AvailabilitySlot[]
+  overrides AvailabilityOverride[]
 }
 
 model AvailabilitySlot {
   id             Int          @id @default(autoincrement())
   availabilityId Int
-  availability   Availability @relation(fields: [availabilityId], references: [id])
+  availability   Availability @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
   dayOfWeek      Int          // 0=Sunday, 1=Monday ... 6=Saturday
   startTime      String       // "09:00"
   endTime        String       // "17:00"
+}
+
+model AvailabilityOverride {
+  id             Int          @id @default(autoincrement())
+  availabilityId Int
+  availability   Availability @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
+  date           String       // "YYYY-MM-DD"
+  startTime      String?      // "09:00" or null if unavailable
+  endTime        String?      // "17:00" or null
 }
 
 model Booking {
