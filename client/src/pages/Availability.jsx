@@ -229,12 +229,13 @@ export default function Availability() {
       {/* Top Header layout */}
       <div className="availability-header">
         <div className="header-left">
-          <div className="back-arrow" style={{cursor: 'pointer'}} onClick={() => setSelectedId(null)}>
+          <div className="back-arrow" onClick={() => setSelectedId(null)}>
              <i className="fa-solid fa-arrow-left"></i>
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                <input 
+                 className="header-title-input"
                  value={name} 
                  onChange={(e) => setName(e.target.value)} 
                  style={{ background: 'transparent', border: 'none', color: 'var(--clr-text)', fontSize: 20, fontWeight: 700, outline: 'none', padding: 0 }} 
@@ -246,15 +247,15 @@ export default function Availability() {
                   }
                }}></i>
             </div>
-            <p style={{ fontSize: 14, color: 'var(--clr-muted)', marginTop: 4 }}>
+            <p style={{ fontSize: 13, color: 'var(--clr-muted)', marginTop: 4 }}>
               Setup your weekly schedule
             </p>
           </div>
         </div>
         <div className="header-right">
-          <div className="toggle-container">
-            <span style={{fontSize: 14, fontWeight: 500}}>Set as default</span>
-            <label className="switch">
+          <div className="toggle-container" style={{ gap: 8 }}>
+            <span style={{fontSize: 13, fontWeight: 500}}>Default</span>
+            <label className="switch" style={{ transform: 'scale(0.85)' }}>
               <input 
                 type="checkbox" 
                 checked={isDefault} 
@@ -267,12 +268,14 @@ export default function Availability() {
             </label>
           </div>
           <div className="divider"></div>
-          <button className="icon-btn-danger" onClick={handleDeleteSchedule} disabled={schedules.length === 1} title={schedules.length === 1 ? "Cannot delete the only schedule" : "Delete Schedule"}>
-             <i className="fa-regular fa-trash-can"></i>
-          </button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '8px 16px' }}>
-            {saving ? 'Saving...' : success ? <><i className="fa-solid fa-check"></i> Saved</> : 'Save'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="icon-btn-danger" onClick={handleDeleteSchedule} disabled={schedules.length === 1} title={schedules.length === 1 ? "Cannot delete the only schedule" : "Delete Schedule"}>
+               <i className="fa-regular fa-trash-can"></i>
+            </button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '8px 16px' }}>
+              {saving ? 'Saving...' : success ? <><i className="fa-solid fa-check"></i> Saved</> : 'Save'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -323,10 +326,10 @@ export default function Availability() {
             {overrides.length > 0 && (
               <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {overrides.map(o => (
-                  <div key={o.date} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--clr-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--clr-border)' }}>
-                     <div style={{ fontWeight: 500, fontSize: 14 }}>{format(parseISO(o.date), 'MMMM d, yyyy')}</div>
-                     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                        <span style={{ fontSize: 14, color: 'var(--clr-muted)' }}>
+                  <div key={o.date} className="override-item">
+                     <div className="override-date">{format(parseISO(o.date), 'MMMM d, yyyy')}</div>
+                     <div className="override-actions">
+                        <span className="override-time">
                            {!o.startTime ? 'Unavailable' : `${TIME_OPTIONS.find(t=>t.value===o.startTime)?.label} - ${TIME_OPTIONS.find(t=>t.value===o.endTime)?.label}`}
                         </span>
                         <button className="icon-btn" onClick={() => deleteOverride(o.date)} style={{ color: 'var(--clr-danger)' }}><i className="fa-regular fa-trash-can"></i></button>
@@ -357,14 +360,14 @@ export default function Availability() {
 
       {showOverrideModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: 700, display: 'flex', padding: 0 }}>
-             <div style={{ flex: 1, padding: 24, borderRight: '1px solid var(--clr-border)' }}>
+          <div className="override-modal-content">
+             <div className="override-calendar-col">
                 <h3 style={{ marginBottom: 16, fontSize: 18, fontWeight: 700 }}>Select the dates to override</h3>
                 <div className="booking-main calendar-col" style={{ border: 'none', background: 'transparent' }}>
                    <Calendar onChange={setODate} value={oDate} minDate={new Date()} />
                 </div>
              </div>
-             <div style={{ width: 300, padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
+             <div className="override-form-col">
                 <div>
                    <label style={{ display: 'block', marginBottom: 12, fontSize: 14, fontWeight: 500 }}>Which hours are you free?</label>
                    {!oUnavail ? (
@@ -395,7 +398,7 @@ export default function Availability() {
                    </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 'auto' }}>
+                <div className="override-modal-footer">
                    <button className="btn btn-secondary btn-sm" style={{ border: 'none' }} onClick={() => setShowOverrideModal(false)}>Close</button>
                    <button className="btn btn-primary btn-sm" onClick={handleCreateOverride}>Save override</button>
                 </div>

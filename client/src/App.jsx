@@ -9,10 +9,25 @@ import Confirmation from './pages/Confirmation'
 import PublicProfile from './pages/PublicProfile'
 import ReschedulePage from './pages/ReschedulePage'
 
+import { useState } from 'react'
+
 function AdminLayout({ children }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
   return (
     <div className="app-layout">
-      <Sidebar />
+      {/* Mobile Sticky Header */}
+      <header className="mobile-header">
+        <button className="hamburger-btn" onClick={() => setIsSidebarOpen(true)}>
+          <i className="fa-solid fa-bars"></i>
+        </button>
+        <div className="mobile-header-user">
+           <div className="sidebar-avatar" style={{width: 20, height: 20, fontSize: 9}}>DS</div>
+           <span>Dheeraj Shahaul Syed</span>
+        </div>
+      </header>
+
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <main className="main-content">{children}</main>
     </div>
   )

@@ -8,7 +8,6 @@ export default function Bookings() {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeDropdown, setActiveDropdown] = useState(null)
-  const [showFilterPanel, setShowFilterPanel] = useState(false)
   const navigate = useNavigate()
 
   // Cancel modal state
@@ -16,21 +15,14 @@ export default function Bookings() {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelling, setCancelling] = useState(false)
 
-  // Search & Filter state
+  // Search state
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterEventType, setFilterEventType] = useState('')
-  const [eventTypeOptions, setEventTypeOptions] = useState([])
-  const filterRef = useRef(null)
 
   const load = async (status) => {
     setLoading(true)
     try {
-      const [bkRes, etRes] = await Promise.all([
-        getBookings(status),
-        getEventTypes(),
-      ])
+      const bkRes = await getBookings(status)
       setBookings(bkRes.data)
-      setEventTypeOptions(etRes.data)
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }
@@ -38,11 +30,8 @@ export default function Bookings() {
   useEffect(() => { load(tab) }, [tab])
 
   useEffect(() => {
-    const close = (e) => {
+    const close = () => {
       setActiveDropdown(null)
-      if (filterRef.current && !filterRef.current.contains(e.target)) {
-        setShowFilterPanel(false)
-      }
     }
     window.addEventListener('click', close)
     return () => window.removeEventListener('click', close)
@@ -69,119 +58,45 @@ export default function Bookings() {
     finally { setCancelling(false) }
   }
 
-  const clearFilters = () => {
-    setSearchQuery('')
-    setFilterEventType('')
-    setShowFilterPanel(false)
-  }
-
-  // Client-side filtering
+  // Client-side filtering (Search only)
   const filteredBookings = bookings.filter((b) => {
     const q = searchQuery.toLowerCase().trim()
+    if (!q) return true;
+
     const dateStr = format(new Date(b.startTime), 'MMM d yyyy').toLowerCase()
 
-    const matchesSearch = !q || (
+    return (
       b.bookerName.toLowerCase().includes(q) ||
       b.bookerEmail.toLowerCase().includes(q) ||
       b.eventType.title.toLowerCase().includes(q) ||
       dateStr.includes(q)
     )
-    const matchesEventType = !filterEventType || b.eventType.id === parseInt(filterEventType)
-
-    return matchesSearch && matchesEventType
   })
 
-  const hasActiveFilters = searchQuery || filterEventType
+  const hasActiveFilters = searchQuery
   const totalCount = filteredBookings.length
 
   return (
     <div style={{ paddingTop: 8 }}>
       {/* Top Tabs Row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--clr-border)', marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--clr-border)', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4, flex: 1 }} className="hide-scrollbar">
           {['UPCOMING', 'PAST', 'CANCELLED'].map((t) => (
             <button
               key={t}
-              onClick={() => { setTab(t); setSearchQuery(''); setFilterEventType('') }}
+              onClick={() => { setTab(t); setSearchQuery(''); }}
               style={{
                 background: 'transparent', border: 'none',
                 color: tab === t ? 'var(--clr-text)' : 'var(--clr-muted)',
                 fontWeight: tab === t ? 600 : 500,
-                fontSize: 14, cursor: 'pointer', paddingBottom: 12,
-                position: 'relative'
+                fontSize: 13, cursor: 'pointer', paddingBottom: 12,
+                position: 'relative', whiteSpace: 'nowrap'
               }}
             >
               {t.charAt(0) + t.slice(1).toLowerCase()}
               {tab === t && <div style={{ position: 'absolute', bottom: -1, left: 0, width: '100%', height: 2, background: 'var(--clr-text)', borderRadius: '2px 2px 0 0' }}></div>}
             </button>
           ))}
-        </div>
-
-        {/* Filter Button */}
-        <div style={{ position: 'relative', marginBottom: 12 }} ref={filterRef}>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={(e) => { e.stopPropagation(); setShowFilterPanel(v => !v) }}
-            style={{
-              padding: '6px 12px', border: '1px solid var(--clr-border)', background: 'transparent',
-              color: hasActiveFilters ? 'var(--clr-primary)' : 'inherit',
-              borderColor: hasActiveFilters ? 'var(--clr-primary)' : 'var(--clr-border)'
-            }}
-          >
-            <i className="fa-solid fa-filter" style={{ marginRight: 6 }}></i>
-            Filter
-            {hasActiveFilters && (
-              <span style={{ marginLeft: 6, background: 'var(--clr-primary)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                {(searchQuery ? 1 : 0) + (filterEventType ? 1 : 0)}
-              </span>
-            )}
-          </button>
-
-          {/* Filter Dropdown Panel */}
-          {showFilterPanel && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                position: 'absolute', right: 0, top: 'calc(100% + 8px)', zIndex: 200,
-                background: 'var(--clr-surface)', border: '1px solid var(--clr-border)',
-                borderRadius: 10, padding: 16, width: 300, boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>Filters</span>
-                {hasActiveFilters && (
-                  <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: 'var(--clr-muted)', fontSize: 12, cursor: 'pointer' }}>
-                    Clear all
-                  </button>
-                )}
-              </div>
-
-              {/* Event Type Filter */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--clr-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Event Type
-                </label>
-                <select
-                  value={filterEventType}
-                  onChange={(e) => setFilterEventType(e.target.value)}
-                  style={{ width: '100%', background: 'var(--clr-bg)', border: '1px solid var(--clr-border)', color: 'var(--clr-text)', padding: '8px 10px', borderRadius: 6, outline: 'none', fontSize: 13 }}
-                >
-                  <option value="">All event types</option>
-                  {eventTypeOptions.map(et => (
-                    <option key={et.id} value={et.id}>{et.title}</option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                onClick={() => setShowFilterPanel(false)}
-                className="btn btn-primary btn-sm"
-                style={{ width: '100%', justifyContent: 'center', padding: '8px 0' }}
-              >
-                Apply
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -206,26 +121,15 @@ export default function Bookings() {
         )}
       </div>
 
-      {/* Active Filter Pills */}
-      {hasActiveFilters && (
+      {/* Active Filter Pills (Search only) */}
+      {searchQuery && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          {searchQuery && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--clr-surface)', border: '1px solid var(--clr-border)', padding: '3px 10px', borderRadius: 20, fontSize: 12 }}>
               <i className="fa-solid fa-magnifying-glass" style={{ fontSize: 10 }}></i> "{searchQuery}"
               <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', color: 'var(--clr-muted)', cursor: 'pointer', padding: 0, lineHeight: 1 }}>
                 <i className="fa-solid fa-xmark" style={{ fontSize: 10 }}></i>
               </button>
             </span>
-          )}
-          {filterEventType && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--clr-surface)', border: '1px solid var(--clr-border)', padding: '3px 10px', borderRadius: 20, fontSize: 12 }}>
-              <i className="fa-regular fa-calendar" style={{ fontSize: 10 }}></i>
-              {eventTypeOptions.find(et => et.id === parseInt(filterEventType))?.title}
-              <button onClick={() => setFilterEventType('')} style={{ background: 'none', border: 'none', color: 'var(--clr-muted)', cursor: 'pointer', padding: 0, lineHeight: 1 }}>
-                <i className="fa-solid fa-xmark" style={{ fontSize: 10 }}></i>
-              </button>
-            </span>
-          )}
         </div>
       )}
 
@@ -284,7 +188,7 @@ export default function Bookings() {
               </div>
 
               {/* Right Column */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 16 }}>
+              <div className="booking-item-right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {tab === 'UPCOMING' && (
                   <div style={{ position: 'relative' }}>
                     <button

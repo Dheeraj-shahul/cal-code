@@ -74,34 +74,52 @@ router.post('/', async (req, res, next) => {
     const start = new Date(startTime);
     const end = new Date(start.getTime() + eventType.durationMinutes * 60 * 1000);
 
-    // Double-booking check
-    const conflict = await prisma.booking.findFirst({
-      where: {
-        eventTypeId: parseInt(eventTypeId),
-        status: { not: 'CANCELLED' },
-        startTime: { lt: end },
-        endTime: { gt: start },
-      },
-    });
+    // Atomic Check-and-Create Transaction with Row-Level Locking
+    const booking = await prisma.$transaction(async (tx) => {
+      // 1. PESSIMISTIC LOCK: Lock the EventType row to serialize all bookings for this specific event type
+      // This is the "bulletproof" step for 10,000+ concurrent users
+      await tx.$executeRaw`SELECT id FROM "EventType" WHERE id = ${parseInt(eventTypeId)} FOR UPDATE`;
 
-    if (conflict) {
-      return res.status(409).json({ error: 'This time slot is already booked. Please pick another.' });
-    }
+      // 2. Double-booking check inside the protected transaction
+      const conflict = await tx.booking.findFirst({
+        where: {
+          eventTypeId: parseInt(eventTypeId),
+          status: { not: 'CANCELLED' },
+          startTime: { lt: end },
+          endTime: { gt: start },
+        },
+      });
 
-    const booking = await prisma.booking.create({
-      data: {
-        eventTypeId: parseInt(eventTypeId),
-        bookerName,
-        bookerEmail,
-        startTime: start,
-        endTime: end,
-        status: 'UPCOMING',
-      },
-      include: { eventType: { select: { title: true, slug: true, durationMinutes: true } } },
+      if (conflict) {
+        throw new Error('SLOT_OCCUPIED');
+      }
+
+      // 3. Create the booking
+      return await tx.booking.create({
+        data: {
+          eventTypeId: parseInt(eventTypeId),
+          bookerName,
+          bookerEmail,
+          startTime: start,
+          endTime: end,
+          status: 'UPCOMING',
+        },
+        include: { eventType: { select: { title: true, slug: true, durationMinutes: true } } },
+      });
+    }, {
+       timeout: 10000 // Higher timeout for high concurrency queuing
     });
 
     res.status(201).json(booking);
   } catch (err) {
+    // 1. Handle our custom error
+    if (err.message === 'SLOT_OCCUPIED') {
+      return res.status(409).json({ error: 'This time slot is already booked. Please pick another.' });
+    }
+    // 2. Handle DB Unique Constraint violation (P2002) - The ultimate safety net
+    if (err.code === 'P2002') {
+      return res.status(409).json({ error: 'This time slot was just taken. Please pick another.' });
+    }
     next(err);
   }
 });
@@ -140,33 +158,43 @@ router.put('/:id/reschedule', async (req, res, next) => {
     const start = new Date(startTime);
     const end = new Date(start.getTime() + existing.eventType.durationMinutes * 60 * 1000);
 
-    // Double-booking check excluding this exact booking
-    const conflict = await prisma.booking.findFirst({
-      where: {
-        eventTypeId: existing.eventTypeId,
-        status: { not: 'CANCELLED' },
-        id: { not: bookingId }, // Exclude self
-        startTime: { lt: end },
-        endTime: { gt: start },
-      },
-    });
+    // Atomic Reschedule Transaction with Row-Level Locking
+    const updated = await prisma.$transaction(async (tx) => {
+      // 1. PESSIMISTIC LOCK: Lock the EventType row
+      await tx.$executeRaw`SELECT id FROM "EventType" WHERE id = ${existing.eventTypeId} FOR UPDATE`;
 
-    if (conflict) {
-      return res.status(409).json({ error: 'This time slot is already booked. Please pick another.' });
-    }
+      // 2. Conflict check excluding self
+      const conflict = await tx.booking.findFirst({
+        where: {
+          eventTypeId: existing.eventTypeId,
+          status: { not: 'CANCELLED' },
+          id: { not: bookingId },
+          startTime: { lt: end },
+          endTime: { gt: start },
+        },
+      });
 
-    const updated = await prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        startTime: start,
-        endTime: end,
-        isRescheduled: true
-      },
-      include: { eventType: { select: { title: true, slug: true, durationMinutes: true } } },
+      if (conflict) {
+        throw new Error('SLOT_OCCUPIED');
+      }
+
+      // 2. Perform the update
+      return await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          startTime: start,
+          endTime: end,
+          isRescheduled: true
+        },
+        include: { eventType: { select: { title: true, slug: true, durationMinutes: true } } },
+      });
     });
 
     res.json(updated);
   } catch(err) {
+    if (err.message === 'SLOT_OCCUPIED') {
+      return res.status(409).json({ error: 'This time slot is already booked. Please pick another.' });
+    }
     next(err);
   }
 });

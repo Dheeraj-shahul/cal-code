@@ -1,92 +1,64 @@
-# CalClone — Scheduling Platform
+# Cal-Clone
 
-A full-stack scheduling/booking web application built as a Cal.com clone. Users can create event types, set availability, and share a public booking page where others can book time slots.
+A full-stack scheduling and booking platform inspired by Cal.com. This application allows users to define meeting templates (Event Types), manage their availability, and handle public booking requests with built-in concurrency protection.
 
-## 🚀 Live Demo
-- **Frontend**: _Coming soon (Vercel)_
-- **Backend API**: _Coming soon (Render)_
+## Technical Stack
 
-## 🛠️ Tech Stack
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 (Vite) |
-| Backend | Node.js + Express.js |
-| Database | PostgreSQL (via Neon.tech) |
-| ORM | Prisma |
-| Styling | Vanilla CSS |
+- **Frontend**: React (Vite), date-fns, Lucide React
+- **Backend**: Node.js, Express.js, Prisma ORM
+- **Database**: PostgreSQL (Hosted on Neon)
+- **Styling**: Vanilla CSS (Custom design system)
 
-## ✨ Features
-- **Event Types** — Create, edit, delete; each has a unique public booking URL
-- **Availability Settings** — Set weekday hours and timezone
-- **Public Booking Page** — Calendar date picker → available time slots → booking form
-- **Double-booking Prevention** — Enforced at DB query level before insert
-- **Bookings Dashboard** — Upcoming / Past / Cancelled tabs with cancel action
-- **Seed Data** — Pre-seeded default user, 3 event types, sample bookings
+## Core Features
 
-## 📦 Local Setup
+- **Event Management**: Create, edit, and delete event types with custom durations and unique URL slugs.
+- **Availability Engine**: Weekly schedule management with support for multiple time intervals per day.
+- **Date Overrides**: Ability to block specific dates or set custom hours for one-off events.
+- **Booking Flow**: Multi-step public booking process with real-time slot calculation.
+- **Rescheduling**: Secure rescheduling flow for existing bookings via unique identifiers.
+- **Dashboard**: Centralized view for upcoming, past, and cancelled meetings.
+
+## Backend Implementation Details
+
+### Concurrency & Data Integrity
+To prevent double-bookings under high concurrent load, the system implements a two-layer defense:
+1. **Pessimistic Locking**: Uses `SELECT ... FOR UPDATE` on the EventType row during the transaction to serialize booking attempts for the same meeting type.
+2. **Database Constraints**: A partial unique index is enforced on `(eventTypeId, startTime)` for all non-cancelled bookings.
+
+### Timezone Handling
+All timestamps are stored in the database as UTC. The frontend dynamically converts these to the visitor's local timezone using the browser's `Intl` API and `date-fns-tz`.
+
+## Getting Started
 
 ### Prerequisites
-- Node.js ≥ 18
-- A PostgreSQL database (free: [neon.tech](https://neon.tech))
+- Node.js (v18+)
+- PostgreSQL instance
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/Dheeraj-shahul/cal-code.git
-cd cal-code
-```
+### Installation
 
-### 2. Set up the backend
-```bash
-cd server
-npm install
-cp .env.example .env
-# Edit .env and add your DATABASE_URL from Neon.tech
-```
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/Dheeraj-shahul/cal-code.git
+   cd cal-code
+   ```
 
-### 3. Run database migrations and seed
-```bash
-npx prisma migrate dev --name init
-npm run seed
-```
+2. **Backend Setup**:
+   ```bash
+   cd server
+   npm install
+   # Create a .env file with your DATABASE_URL
+   npx prisma migrate dev
+   npm run seed
+   npm run dev
+   ```
 
-### 4. Start the backend server
-```bash
-npm run dev
-# Server runs on http://localhost:5000
-```
+3. **Frontend Setup**:
+   ```bash
+   cd ../client
+   npm install
+   npm run dev
+   ```
 
-### 5. Set up and start the frontend
-```bash
-cd ../client
-npm install
-npm run dev
-# Frontend runs on http://localhost:5173
-```
-
-## 🔑 Environment Variables
-
-### `server/.env`
-```
-DATABASE_URL=postgresql://USER:PASSWORD@HOST/DB?sslmode=require
-PORT=5000
-CLIENT_URL=http://localhost:5173
-```
-
-### `client/.env` (only needed for production)
-```
-VITE_API_URL=https://your-render-backend-url.onrender.com/api
-```
-
-## 📝 Assumptions
-- A single default user (`admin@calclone.com`) is pre-seeded — no authentication required
-- The admin side (dashboard, event types, availability, bookings) assumes this user is logged in
-- The public booking page (`/book/:slug`) is accessible without login
-- All booking times are stored as UTC in the database
-
-## 🗃️ Database Schema
-```
-User → EventType (one-to-many)
-User → Availability (one-to-one)
-Availability → AvailabilitySlot (one-to-many, weekly schedule)
-EventType → Booking (one-to-many)
-```
+## Assumptions & Assumptions
+- **Authentication**: For the purpose of this assignment, a default admin user is pre-seeded. Authentication logic has been bypassed to allow immediate access to the dashboard.
+- **Slot Calculation**: Slots are generated dynamically based on the intersection of the host's availability, existing bookings, and date overrides.

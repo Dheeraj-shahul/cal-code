@@ -40,7 +40,7 @@ const links = [
   },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopyLink = () => {
@@ -51,39 +51,48 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-header" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px 24px'}}>
-        <div className="sidebar-user" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="sidebar-avatar" style={{width: 24, height: 24, borderRadius: '50%', background: '#22c55e', color: '#111', fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>DS</div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--clr-text)' }}>Dheeraj Shahaul Syed</div>
+    <>
+      {/* Mobile Overlay */}
+      <div className={`sidebar-overlay ${isOpen ? 'active' : ''}`} onClick={onClose}></div>
+      
+      <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+        <div className="sidebar-header" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px 24px'}}>
+          <div className="sidebar-user" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="sidebar-avatar" style={{width: 24, height: 24, borderRadius: '50%', background: '#22c55e', color: '#111', fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>DS</div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--clr-text)' }}>Dheeraj Shahaul Syed</div>
+          </div>
+          <button className="mobile-close-btn" onClick={onClose}>
+            <i className="fa-solid fa-xmark"></i>
+          </button>
         </div>
-      </div>
 
-      <nav className="sidebar-nav">
-        {links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-          >
-            {link.icon}
-            {link.label}
-          </NavLink>
-        ))}
-      </nav>
+        <nav className="sidebar-nav">
+          {links.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
+              onClick={onClose}
+            >
+              {link.icon}
+              {link.label}
+            </NavLink>
+          ))}
+        </nav>
 
-      <div className="sidebar-footer" style={{ marginTop: 'auto', paddingBottom: 16 }}>
-        <a href="/dheeraj-shahaul-syed" className="sidebar-link" style={{margin: '0 8px 4px', whiteSpace: 'nowrap'}} target="_blank" rel="noopener noreferrer">
-           <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize: 13}}></i> View public page
-        </a>
-        <button className="sidebar-link" onClick={handleCopyLink} style={{width: 'calc(100% - 16px)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap'}}>
-           {copied ? <i className="fa-solid fa-check" style={{fontSize: 13, color: 'var(--clr-success)'}}></i> : <i className="fa-regular fa-copy" style={{fontSize: 13}}></i>} 
-           {copied ? <span style={{color: 'var(--clr-success)'}}>Copied!</span> : 'Copy public page link'}
-        </button>
-        <div style={{padding: '16px 20px 0', fontSize: 10, color: '#52525b', alignSelf: 'flex-start'}}>
-           © 2026 CalClone, Inc. v.4.4.0
+        <div className="sidebar-footer" style={{ marginTop: 'auto', paddingBottom: 16 }}>
+          <a href="/dheeraj-shahaul-syed" className="sidebar-link" style={{margin: '0 8px 4px', whiteSpace: 'nowrap'}} target="_blank" rel="noopener noreferrer">
+             <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize: 13}}></i> View public page
+          </a>
+          <button className="sidebar-link" onClick={handleCopyLink} style={{width: 'calc(100% - 16px)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap'}}>
+             {copied ? <i className="fa-solid fa-check" style={{fontSize: 13, color: 'var(--clr-success)'}}></i> : <i className="fa-regular fa-copy" style={{fontSize: 13}}></i>} 
+             {copied ? <span style={{color: 'var(--clr-success)'}}>Copied!</span> : 'Copy public page link'}
+          </button>
+          <div style={{padding: '16px 20px 0', fontSize: 10, color: '#52525b', alignSelf: 'flex-start'}}>
+             © 2026 CalClone, Inc. v.4.4.0
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   )
 }
