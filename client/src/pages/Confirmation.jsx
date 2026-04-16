@@ -27,7 +27,7 @@ export default function Confirmation() {
   if (!booking) return (
     <div className="confirmation-page">
       <div className="confirmation-card">
-        <div className="confirmation-icon">⚠️</div>
+        <div className="confirmation-icon"><i className="fa-solid fa-triangle-exclamation"></i></div>
         <h1>Booking not found</h1>
         <Link to={`/book/${slug}`} className="btn btn-primary" style={{ marginTop: 16 }}>Go back</Link>
       </div>
@@ -37,7 +37,7 @@ export default function Confirmation() {
   return (
     <div className="confirmation-page">
       <div className="confirmation-card">
-        <div className="confirmation-icon">🎉</div>
+        <div className="confirmation-icon"><i className="fa-solid fa-circle-check" style={{color: 'var(--clr-success)'}}></i></div>
         <h1>Booking Confirmed!</h1>
         <p>
           A confirmation has been sent to <strong>{booking.bookerEmail}</strong>.<br />

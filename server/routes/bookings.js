@@ -51,7 +51,7 @@ router.get('/:id', async (req, res, next) => {
   try {
     const booking = await prisma.booking.findUnique({
       where: { id: parseInt(req.params.id) },
-      include: { eventType: { select: { title: true, slug: true, durationMinutes: true } } },
+      include: { eventType: { select: { id: true, title: true, slug: true, durationMinutes: true } } },
     });
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     res.json(booking);
@@ -109,12 +109,64 @@ router.post('/', async (req, res, next) => {
 // DELETE /api/bookings/:id - cancel a booking
 router.delete('/:id', async (req, res, next) => {
   try {
+    const { cancellationReason } = req.body || {};
     const booking = await prisma.booking.update({
       where: { id: parseInt(req.params.id) },
-      data: { status: 'CANCELLED' },
+      data: {
+        status: 'CANCELLED',
+        cancellationReason: cancellationReason || null,
+      },
     });
     res.json(booking);
   } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/bookings/:id/reschedule - reschedule an existing booking
+router.put('/:id/reschedule', async (req, res, next) => {
+  try {
+    const { startTime } = req.body;
+    if (!startTime) return res.status(400).json({ error: 'startTime is required for rescheduling' });
+
+    const bookingId = parseInt(req.params.id);
+    const existing = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { eventType: true }
+    });
+
+    if (!existing) return res.status(404).json({ error: 'Booking not found' });
+
+    const start = new Date(startTime);
+    const end = new Date(start.getTime() + existing.eventType.durationMinutes * 60 * 1000);
+
+    // Double-booking check excluding this exact booking
+    const conflict = await prisma.booking.findFirst({
+      where: {
+        eventTypeId: existing.eventTypeId,
+        status: { not: 'CANCELLED' },
+        id: { not: bookingId }, // Exclude self
+        startTime: { lt: end },
+        endTime: { gt: start },
+      },
+    });
+
+    if (conflict) {
+      return res.status(409).json({ error: 'This time slot is already booked. Please pick another.' });
+    }
+
+    const updated = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        startTime: start,
+        endTime: end,
+        isRescheduled: true
+      },
+      include: { eventType: { select: { title: true, slug: true, durationMinutes: true } } },
+    });
+
+    res.json(updated);
+  } catch(err) {
     next(err);
   }
 });

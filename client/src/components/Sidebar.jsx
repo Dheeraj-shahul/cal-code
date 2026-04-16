@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
 
 const links = [
   {
@@ -15,9 +16,7 @@ const links = [
     to: '/event-types',
     label: 'Event Types',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-      </svg>
+     <i class="fa-solid fa-link"></i>
     ),
   },
   {
@@ -42,14 +41,22 @@ const links = [
 ]
 
 export default function Sidebar() {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyLink = () => {
+    const link = `${window.location.origin}/dheeraj-shahaul-syed`
+    navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <aside className="sidebar">
       <div className="sidebar-header" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px 24px'}}>
         <div className="sidebar-user" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="sidebar-avatar" style={{width: 24, height: 24, borderRadius: '50%', background: '#22c55e', color: '#111', fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>JW</div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--clr-text)' }}>John wick</div>
+          <div className="sidebar-avatar" style={{width: 24, height: 24, borderRadius: '50%', background: '#22c55e', color: '#111', fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>DS</div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--clr-text)' }}>Dheeraj Shahaul Syed</div>
         </div>
-        <i className="fa-solid fa-chevron-down" style={{fontSize: 12, color: 'var(--clr-muted)'}}></i>
       </div>
 
       <nav className="sidebar-nav">
@@ -66,11 +73,12 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar-footer" style={{ marginTop: 'auto', paddingBottom: 16 }}>
-        <a href="/alex-johnson" className="sidebar-link" style={{margin: '0 8px 4px', whiteSpace: 'nowrap'}}>
+        <a href="/dheeraj-shahaul-syed" className="sidebar-link" style={{margin: '0 8px 4px', whiteSpace: 'nowrap'}} target="_blank" rel="noopener noreferrer">
            <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize: 13}}></i> View public page
         </a>
-        <button className="sidebar-link" style={{width: 'calc(100% - 16px)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap'}}>
-           <i className="fa-regular fa-copy" style={{fontSize: 13}}></i> Copy public page link
+        <button className="sidebar-link" onClick={handleCopyLink} style={{width: 'calc(100% - 16px)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap'}}>
+           {copied ? <i className="fa-solid fa-check" style={{fontSize: 13, color: 'var(--clr-success)'}}></i> : <i className="fa-regular fa-copy" style={{fontSize: 13}}></i>} 
+           {copied ? <span style={{color: 'var(--clr-success)'}}>Copied!</span> : 'Copy public page link'}
         </button>
         <div style={{padding: '16px 20px 0', fontSize: 10, color: '#52525b', alignSelf: 'flex-start'}}>
            © 2026 CalClone, Inc. v.4.4.0

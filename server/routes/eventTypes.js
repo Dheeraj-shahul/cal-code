@@ -72,7 +72,7 @@ router.post('/', async (req, res, next) => {
 // PUT /api/event-types/:id - update
 router.put('/:id', async (req, res, next) => {
   try {
-    const { title, description, durationMinutes, slug, bufferMinutes } = req.body;
+    const { title, description, durationMinutes, slug, bufferMinutes, isHidden } = req.body;
     const eventType = await prisma.eventType.update({
       where: { id: parseInt(req.params.id) },
       data: {
@@ -81,6 +81,7 @@ router.put('/:id', async (req, res, next) => {
         ...(durationMinutes && { durationMinutes: parseInt(durationMinutes) }),
         ...(slug && { slug }),
         ...(bufferMinutes !== undefined && { bufferMinutes: parseInt(bufferMinutes) }),
+        ...(isHidden !== undefined && { isHidden }),
       },
     });
     res.json(eventType);

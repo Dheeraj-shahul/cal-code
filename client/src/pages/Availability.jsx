@@ -166,7 +166,7 @@ export default function Availability() {
   if (!selectedId) {
     return (
       <div className="availability-page-container">
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 32 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
           <div>
             <h1 style={{fontSize: 20, fontWeight: 700}}>Availability</h1>
             <p style={{fontSize: 14, color: 'var(--clr-muted)'}}>Configure times when you are available for bookings.</p>
@@ -175,21 +175,49 @@ export default function Availability() {
             <i className="fa-solid fa-plus" style={{marginRight: 6}}></i> New
           </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {schedules.map(s => (
-            <div key={s.id} className="card schedule-list-card" onClick={() => handleSelect(s)} style={{ cursor: 'pointer', padding: 24, transition: '0.2s ease'}}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                   <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{s.name}</h3>
-                   {s.isDefault && <span style={{ background: '#3f3f46', fontSize: 12, padding: '2px 8px', borderRadius: 12, fontWeight: 500 }}>Default</span>}
+        <div className="event-list-container">
+          {schedules.map(s => {
+             // Create a pure inline visual digest for the schedule slots
+             const activeSlots = s.slots || [];
+             let summaryLines = [];
+             if (activeSlots.length === 0) {
+                summaryLines.push("Unavailable completely");
+             } else {
+                // Simplified grouping string for snapshot parity
+                // Extracting typical Mon-Fri chunks, skipping complex AST tree loops for visual mapping
+                const mapDaysIdx = activeSlots.map(x => x.dayOfWeek).sort();
+                let dayString = mapDaysIdx.length === 5 && mapDaysIdx[0] === 1 && mapDaysIdx[4] === 5 ? "Mon - Fri" : 
+                               mapDaysIdx.map(i => DAYS[i].substring(0,3)).join(', ');
+                const baseTime = `${activeSlots[0].startTime} - ${activeSlots[0].endTime}`;
+                summaryLines.push(`${dayString}, ${baseTime}`);
+             }
+
+             return (
+              <div key={s.id} className="event-list-item" style={{alignItems: 'center', padding: '16px 20px', cursor: 'pointer', position: 'relative'}} onClick={() => handleSelect(s)}>
+                 <div className="event-list-info" style={{ flex: 1 }}>
+                    <div className="event-list-title" style={{ gap: 8 }}>
+                       <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{s.name}</h3>
+                       {s.isDefault && <span style={{ background: '#3f3f46', fontSize: 11, padding: '2px 8px', borderRadius: 12, fontWeight: 500, color: '#ededed' }}>Default</span>}
+                    </div>
+                    
+                    <div style={{ fontSize: 13, color: 'var(--clr-muted)', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                       {summaryLines.map((l, i) => <div key={i}>{l}</div>)}
+                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <i className="fa-solid fa-earth-americas" style={{ fontSize: 12 }}></i> {s.timezone}
+                       </div>
+                    </div>
                  </div>
-                 <div style={{color: 'var(--clr-muted)'}}><i className="fa-solid fa-chevron-right"></i></div>
-               </div>
-               <p style={{ marginTop: 12, fontSize: 14, color: 'var(--clr-muted)'}}>
-                  <i className="fa-solid fa-earth-americas" style={{marginRight: 6}}></i> {s.timezone}
-               </p>
-            </div>
-          ))}
+
+                 <div className="event-list-actions" style={{ marginLeft: 16 }}>
+                    <div style={{ position: 'relative' }}>
+                       <button className="btn btn-icon btn-sm" title="Options" onClick={(e) => { e.stopPropagation(); }} style={{ padding: 6, width: 32, height: 32 }}>
+                          <i className="fa-solid fa-ellipsis" style={{ fontSize: 14 }}></i>
+                       </button>
+                    </div>
+                 </div>
+              </div>
+             );
+          })}
         </div>
       </div>
     )
@@ -211,7 +239,12 @@ export default function Availability() {
                  onChange={(e) => setName(e.target.value)} 
                  style={{ background: 'transparent', border: 'none', color: 'var(--clr-text)', fontSize: 20, fontWeight: 700, outline: 'none', padding: 0 }} 
                />
-               <i className="fa-solid fa-pen" style={{fontSize: 14, color: 'var(--clr-muted)'}}></i>
+               <i className="fa-solid fa-pen" style={{fontSize: 14, color: 'var(--clr-muted)', cursor: 'pointer'}} onClick={() => {
+                  const newName = window.prompt("Enter new schedule name:", name);
+                  if(newName && newName.trim() !== '') {
+                     setName(newName.trim());
+                  }
+               }}></i>
             </div>
             <p style={{ fontSize: 14, color: 'var(--clr-muted)', marginTop: 4 }}>
               Setup your weekly schedule
@@ -238,7 +271,7 @@ export default function Availability() {
              <i className="fa-regular fa-trash-can"></i>
           </button>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '8px 16px' }}>
-            {saving ? 'Saving...' : success ? '✓ Saved' : 'Save'}
+            {saving ? 'Saving...' : success ? <><i className="fa-solid fa-check"></i> Saved</> : 'Save'}
           </button>
         </div>
       </div>
@@ -318,11 +351,7 @@ export default function Availability() {
             </select>
           </div>
 
-          {/* Troubleshooter Card */}
-          <div className="troubleshoot-card">
-            <h4>Something doesn't look right?</h4>
-            <button className="btn btn-secondary btn-sm">Launch troubleshooter</button>
-          </div>
+
         </div>
       </div>
 

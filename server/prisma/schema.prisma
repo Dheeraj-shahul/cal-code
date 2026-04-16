@@ -26,6 +26,7 @@ model EventType {
   durationMinutes Int
   slug            String    @unique
   bufferMinutes   Int       @default(0)
+  isHidden        Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   bookings        Booking[]
@@ -61,15 +62,17 @@ model AvailabilityOverride {
 }
 
 model Booking {
-  id          Int         @id @default(autoincrement())
-  eventTypeId Int
-  eventType   EventType   @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
-  bookerName  String
-  bookerEmail String
-  startTime   DateTime
-  endTime     DateTime
-  status      BookingStatus @default(UPCOMING)
-  createdAt   DateTime      @default(now())
+  id                 Int         @id @default(autoincrement())
+  eventTypeId        Int
+  eventType          EventType   @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  bookerName         String
+  bookerEmail        String
+  startTime          DateTime
+  endTime            DateTime
+  status             BookingStatus @default(UPCOMING)
+  isRescheduled      Boolean       @default(false)
+  cancellationReason String?
+  createdAt          DateTime      @default(now())
 }
 
 enum BookingStatus {

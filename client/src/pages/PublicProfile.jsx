@@ -10,7 +10,7 @@ export default function PublicProfile() {
     async function load() {
       try {
         const res = await getEventTypes()
-        setEventTypes(res.data)
+        setEventTypes(res.data.filter(et => !et.isHidden))
       } catch (e) {
         console.error(e)
       } finally {
@@ -33,8 +33,8 @@ export default function PublicProfile() {
       <div className="public-profile-card">
         {/* Avatar + Name */}
         <div className="public-profile-header">
-          <div className="public-avatar">AJ</div>
-          <h1 className="public-name">Alex Johnson</h1>
+          <div className="public-avatar">DS</div>
+          <h1 className="public-name">Dheeraj Shahaul Syed</h1>
           <p className="public-bio">
             Welcome to my scheduling page. Pick an event type below to book a time with me.
           </p>

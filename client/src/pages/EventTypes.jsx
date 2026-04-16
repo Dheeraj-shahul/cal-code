@@ -82,7 +82,7 @@ export default function EventTypes() {
 
       {eventTypes.length === 0 ? (
         <div className="card empty-state">
-          <div className="empty-state-icon">📋</div>
+          <div className="empty-state-icon"><i className="fa-regular fa-clipboard"></i></div>
           <h3>No event types yet</h3>
           <p>Create your first event type to get a booking link</p>
           <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={openCreate}>Create Event Type</button>
@@ -105,7 +105,17 @@ export default function EventTypes() {
                 <div className="event-list-switch">
                   <span style={{ fontSize: 13, color: 'var(--clr-muted)' }}>Hidden</span>
                   <label className="switch" style={{ transform: 'scale(0.85)', margin: 0 }}>
-                    <input type="checkbox" defaultChecked={false} />
+                    <input 
+                       type="checkbox" 
+                       checked={et.isHidden || false} 
+                       onChange={async (e) => {
+                          const val = e.target.checked;
+                          try {
+                             await updateEventType(et.id, { isHidden: val });
+                             load();
+                          } catch(err) { console.error(err) }
+                       }} 
+                    />
                     <span className="slider round"></span>
                   </label>
                 </div>
@@ -147,7 +157,7 @@ export default function EventTypes() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editing ? 'Edit Event Type' : 'New Event Type'}</h2>
-              <button className="btn btn-ghost btn-sm" onClick={closeModal}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={closeModal}><i className="fa-solid fa-xmark"></i></button>
             </div>
             {error && <div className="error-msg">{error}</div>}
             <form onSubmit={handleSubmit}>

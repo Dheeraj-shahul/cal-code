@@ -1,26 +1,29 @@
 import { useEffect, useState } from 'react'
 import { getBookings, getEventTypes } from '../api/api'
-import { format } from 'date-fns'
+import { format, isSameDay } from 'date-fns'
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ upcoming: 0, past: 0, eventTypes: 0 })
-  const [upcoming, setUpcoming] = useState([])
+  const [stats, setStats] = useState({ upcoming: 0, today: 0, eventTypes: 0 })
+  const [todayMeetings, setTodayMeetings] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       try {
-        const [upRes, pastRes, etRes] = await Promise.all([
+        const [upRes, etRes] = await Promise.all([
           getBookings('UPCOMING'),
-          getBookings('PAST'),
           getEventTypes(),
         ])
+
+        const now = new Date()
+        const meetingsToday = upRes.data.filter(b => isSameDay(new Date(b.startTime), now))
+
         setStats({
           upcoming: upRes.data.length,
-          past: pastRes.data.length,
+          today: meetingsToday.length,
           eventTypes: etRes.data.length,
         })
-        setUpcoming(upRes.data.slice(0, 5))
+        setTodayMeetings(meetingsToday)
       } catch (e) {
         console.error(e)
       } finally {
@@ -37,46 +40,41 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1>Dashboard</h1>
-          <p>Welcome back, Alex</p>
+          <p>Welcome back, Dheeraj</p>
         </div>
       </div>
 
       <div className="stats-grid">
+
         <div className="stat-card">
-          <div className="stat-icon"><svg  fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-      </svg></div>
+          <div className="stat-icon"> <i className="fa-regular fa-clock"></i></div>
+          <div className="stat-label">Today's Meetings</div>
+          <div className="stat-value">{stats.today}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon"><i className="fa-regular fa-calendar"></i></div>
           <div className="stat-label">Upcoming Bookings</div>
           <div className="stat-value">{stats.upcoming}</div>
         </div>
+        
         <div className="stat-card">
-          <div className="stat-icon"> <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-      </svg></div>
-          <div className="stat-label">Past Meetings</div>
-          <div className="stat-value">{stats.past}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon"><svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-      </svg></div>
+          <div className="stat-icon"><i className="fa-solid fa-link"></i></div>
           <div className="stat-label">Event Types</div>
           <div className="stat-value">{stats.eventTypes}</div>
         </div>
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Upcoming Meetings</h2>
-        {upcoming.length === 0 ? (
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Meetings Today</h2>
+        {todayMeetings.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state-icon">📭</div>
-            <h3>No upcoming meetings</h3>
-            <p>Share your booking link to get started</p>
+            <div className="empty-state-icon"><i className="fa-regular fa-calendar"></i></div>
+            <h3>No meetings scheduled for today</h3>
+            <p>You're all clear! Share your booking link to fill your schedule.</p>
           </div>
         ) : (
           <div className="grid-list">
-            {upcoming.map((b) => (
+            {todayMeetings.map((b) => (
               <div className="booking-item" key={b.id}>
                 <div className="booking-item-left">
                   <div className="booking-time-block">
@@ -88,7 +86,7 @@ export default function Dashboard() {
                     <p>{b.eventType.title} · {format(new Date(b.startTime), 'h:mm a')}</p>
                   </div>
                 </div>
-                <span className="badge badge-grey">Upcoming</span>
+                <span className="badge badge-grey">Today</span>
               </div>
             ))}
           </div>

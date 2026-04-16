@@ -3,60 +3,73 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { format } from 'date-fns'
-import { getEventTypeBySlug, getAvailability, getAvailableSlots, createBooking } from '../api/api'
+import { getBookingById, getAvailability, getAvailableSlots, rescheduleBooking } from '../api/api'
 
-export default function BookingPage() {
-  const { slug } = useParams()
+export default function ReschedulePage() {
+  const { id } = useParams()
   const navigate = useNavigate()
 
+  const [bookingRef, setBookingRef] = useState(null)
   const [eventType, setEventType] = useState(null)
   const [availability, setAvailability] = useState(null)
+  
   const [selectedDate, setSelectedDate] = useState(null)
   const [slots, setSlots] = useState([])
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [slotsLoading, setSlotsLoading] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '' })
+  
   const [loading, setLoading] = useState(true)
-  const [booking, setBooking] = useState(false)
+  const [rescheduling, setRescheduling] = useState(false)
   const [error, setError] = useState('')
   const [selectedTimezone, setSelectedTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata');
-  const [timeFormat, setTimeFormat] = useState('12h');
-  
-  // Custom Time Formatter factoring in dynamic selectedTimezone and format (12h/24h)
+
   const formatTimeLocally = (dateStr) => {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: selectedTimezone,
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(dateStr));
+  }
+
+  const formatDateTimeLocally = (dateStr) => {
     return new Intl.DateTimeFormat('en-US', {
       timeZone: selectedTimezone,
+      month: 'short',
+      day: 'numeric',
       hour: 'numeric',
-      minute: '2-digit',
-      hour12: timeFormat === '12h'
+      minute: '2-digit'
     }).format(new Date(dateStr));
   }
 
   useEffect(() => {
     async function load() {
       try {
-        const [etRes, avRes] = await Promise.all([
-          getEventTypeBySlug(slug),
+        const [bkRes, avRes] = await Promise.all([
+          getBookingById(id),
           getAvailability(),
         ])
-        setEventType(etRes.data)
         
-        // Find default schedule, or fallback to first one
+        const b = bkRes.data
+        setBookingRef(b)
+        setEventType(b.eventType) // Contains title, slug, durationMinutes injected via the backend DTO
+        
+        // Match base availability constraints
         const activeSched = Array.isArray(avRes.data)
            ? (avRes.data.find(a => a.isDefault) || avRes.data[0])
-           : avRes.data;
+           : avRes.data
            
         setAvailability(activeSched)
       } catch (e) {
         console.error(e)
+        setError('Booking not found or unavailable.')
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [slug])
+  }, [id])
 
-  // Auto-select today's date on initial load
+  // Select today natively
   useEffect(() => {
     if (eventType && availability && !selectedDate) {
       const today = new Date();
@@ -64,6 +77,8 @@ export default function BookingPage() {
       setSelectedSlot(null);
       setSlotsLoading(true);
       const dateStr = format(today, 'yyyy-MM-dd');
+      // Pass the booking id inside the slot fetch logic natively if needed, but our slot checker gets all slots.
+      // Conflicts logic already excludes the same booking logic inside the backend reschedule mutation!
       getAvailableSlots(eventType.id, dateStr)
         .then(res => {
           setSlots(res.data);
@@ -85,7 +100,6 @@ export default function BookingPage() {
     
     let isUnavailable = !availableDays.includes(date.getDay())
     
-    // Check Date Overrides on public calendar!
     if (availability?.overrides?.length > 0) {
       const override = availability.overrides.find(o => o.date === dateStr)
       if (override) {
@@ -109,36 +123,31 @@ export default function BookingPage() {
     finally { setSlotsLoading(false) }
   }
 
-  const handleBook = async (e) => {
+  const handleReschedule = async (e) => {
     e.preventDefault()
     setError('')
-    setBooking(true)
+    setRescheduling(true)
     try {
-      const res = await createBooking({
-        eventTypeId: eventType.id,
-        bookerName: form.name,
-        bookerEmail: form.email,
-        startTime: selectedSlot.start,
-      })
-      navigate(`/book/${slug}/confirmation?bookingId=${res.data.id}`)
+      await rescheduleBooking(bookingRef.id, { startTime: selectedSlot.start })
+      navigate('/bookings')
     } catch (err) {
-      setError(err?.response?.data?.error || 'Booking failed. Please try again.')
-    } finally { setBooking(false) }
+      setError(err?.response?.data?.error || 'Reschedule failed. Please pick a different slot.')
+    } finally { setRescheduling(false) }
   }
 
   if (loading) return <div className="booking-page"><div className="spinner">Loading...</div></div>
-  if (!eventType) return <div className="booking-page"><div className="card">Event not found.</div></div>
+  if (!eventType) return <div className="booking-page"><div className="card">{error || 'Event not found.'}</div></div>
 
   return (
     <div className="booking-page">
       <div className="booking-card">
         {/* LEFT SIDEBAR */}
         <div className="booking-sidebar">
-          <p className="host-name"><i class="fa-regular fa-user"></i> {eventType.user?.name}</p>
+          <p className="host-name"><i className="fa-regular fa-user"></i> {bookingRef.bookerName} (Rescheduling)</p>
           <h1>{eventType.title}</h1>
-          {eventType.description && (
-            <p style={{ fontSize: 13, color: 'var(--clr-muted)', marginBottom: 20 }}>{eventType.description}</p>
-          )}
+          <p style={{ fontSize: 13, color: 'var(--clr-muted)', marginBottom: 20 }}>
+            Original time: {format(new Date(bookingRef.startTime), 'MMM d, h:mm a')}
+          </p>
           <div className="booking-meta">
             <div className="booking-meta-item">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -168,79 +177,58 @@ export default function BookingPage() {
               {selectedDate ? format(selectedDate, 'MMMM d, yyyy') : 'Select a date'}
             </div>
             {selectedSlot && (
-              <div className="booking-meta-item" style={{ color: 'var(--clr-primary)', fontWeight: 600 }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
+              <div className="booking-meta-item" style={{ color: 'var(--clr-warning)', fontWeight: 600 }}>
+                <i className="fa-regular fa-clock" style={{ marginRight: 8 }}></i>
                 {formatTimeLocally(selectedSlot.start)}
               </div>
             )}
           </div>
         </div>
 
-        {/* DYNAMIC RIGHT CONTENT */}
-        {/* DYNAMIC RIGHT CONTENT */}
+        {/* DYNAMIC RIGHT CONTAINER */}
         <div className="booking-dynamic-container" style={{ position: 'relative', overflow: 'hidden' }}>
           
-          {/* Calendar & Time Selection View */}
-          <div style={{
-            display: 'flex', flex: 1, width: '100%', 
-            transition: 'transform 0.3s ease, opacity 0.3s ease',
+          {/* Calendar View */}
+          <div className="booking-main calendar-col" style={{
+            transition: 'transform 0.5s ease-in-out, opacity 0.5s ease-in-out',
             transform: selectedSlot ? 'translateX(-100%)' : 'translateX(0)',
             opacity: selectedSlot ? 0 : 1,
-            position: selectedSlot ? 'absolute' : 'relative',
-            pointerEvents: selectedSlot ? 'none' : 'auto'
+            pointerEvents: selectedSlot ? 'none' : 'auto',
           }}>
-            <div className="booking-main calendar-col" style={{ borderRight: selectedDate ? '1px solid var(--clr-border)' : 'none' }}>
-              <Calendar
-                onChange={handleDateChange}
-                value={selectedDate}
-                tileDisabled={tileDisabled}
-                minDate={new Date()}
-              />
-            </div>
-            {selectedDate && (
-              <div className="booking-time-col">
-                <div className="time-col-header">
-                  <span>{format(selectedDate, 'EEEE d')}</span>
-                  <div className="time-format-toggle">
-                    <button 
-                      className={`time-format-btn ${timeFormat === '12h' ? 'active' : ''}`}
-                      onClick={() => setTimeFormat('12h')}
-                    >
-                      12h
-                    </button>
-                    <button 
-                      className={`time-format-btn ${timeFormat === '24h' ? 'active' : ''}`}
-                      onClick={() => setTimeFormat('24h')}
-                    >
-                      24h
-                    </button>
-                  </div>
-                </div>
-                {slotsLoading ? (
-                  <div className="spinner">...</div>
-                ) : slots.length === 0 ? (
-                  <p style={{ color: 'var(--clr-muted)', fontSize: 14 }}>No slots available.</p>
-                ) : (
-                  <div className="time-slots-vertical">
-                    {slots.map((slot) => (
-                      <button
-                        key={slot.start}
-                        className="time-slot-btn-cal"
-                        onClick={() => setSelectedSlot(slot)}
-                      >
-                        <span className="dot"></span>
-                        {formatTimeLocally(slot.start)}
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <h2>Select a new Date & Time</h2>
+            <div style={{ display: 'flex', gap: 32 }}>
+              <div style={{ flex: 1 }}>
+                <Calendar 
+                  onChange={handleDateChange} 
+                  value={selectedDate} 
+                  tileDisabled={tileDisabled}
+                  minDate={new Date()}
+                />
               </div>
-            )}
+              
+              {selectedDate && (
+                <div className="booking-time-col">
+                  <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>{format(selectedDate, 'EEEE, MMMM d')}</h3>
+                  {slotsLoading ? (
+                    <div className="spinner">Loading slots...</div>
+                  ) : slots.length === 0 ? (
+                    <p style={{ color: 'var(--clr-muted)', fontSize: 13 }}>No times available.</p>
+                  ) : (
+                    <div className="time-slots-vertical">
+                      {slots.map((s, i) => (
+                        <button key={i} className="time-slot-btn-cal" onClick={() => setSelectedSlot(s)}>
+                          <span className="dot"></span>
+                          {formatTimeLocally(s.start)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Booking Form View */}
+          {/* Form View (Stripped for simple Reschedule) */}
           <div className="booking-main form-col" style={{
             position: 'absolute',
             top: 0, left: 0, width: '100%', height: '100%',
@@ -248,27 +236,32 @@ export default function BookingPage() {
             transform: selectedSlot ? 'translateX(0)' : 'translateX(100%)',
             opacity: selectedSlot ? 1 : 0,
             pointerEvents: selectedSlot ? 'auto' : 'none',
-            overflowY: 'auto'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedSlot(null)}><i className="fa-solid fa-arrow-left"></i> Back</button>
-              <h2 style={{ margin: 0 }}>Enter your details</h2>
-            </div>
-            {error && <div className="error-msg">{error}</div>}
-            <form onSubmit={handleBook}>
-              <div className="form-group">
-                <label>Your Name *</label>
-                <input className="form-control" placeholder="Name" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <button className="btn btn-secondary btn-sm" onClick={() => setSelectedSlot(null)} style={{ marginBottom: 20 }}>
+              <i className="fa-solid fa-arrow-left"></i> Back
+            </button>
+            <h2>Confirm Reschedule</h2>
+            {error && <div className="alert alert-danger" style={{ marginBottom: 16, color: 'var(--clr-danger)' }}>{error}</div>}
+            
+            <form onSubmit={handleReschedule} style={{ marginTop: 24 }}>
+              <div style={{ background: 'var(--clr-surface)', padding: 16, borderRadius: 'var(--radius)', border: '1px solid var(--clr-border)', marginBottom: 24 }}>
+                 <p style={{ fontSize: 14, color: 'var(--clr-muted)', marginBottom: 8 }}>Rescheduling for</p>
+                 <h4 style={{ margin: 0, fontSize: 16 }}>{bookingRef?.bookerName}</h4>
+                 <p style={{ margin: 0, fontSize: 13, color: 'var(--clr-muted)' }}>{bookingRef?.bookerEmail}</p>
+                 
+                 <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--clr-border)' }}>
+                   <p style={{ margin: 0, fontSize: 14, fontWeight: 500 }}>
+                     New Time: {selectedSlot && formatDateTimeLocally(selectedSlot.start)}
+                   </p>
+                 </div>
               </div>
-              <div className="form-group">
-                <label>Email Address *</label>
-                <input className="form-control" type="email" placeholder="example@gmail.com" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={booking}>
-                {booking ? 'Confirming...' : 'Confirm Booking'}
+              
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={rescheduling}>
+                {rescheduling ? 'Moving...' : 'Confirm Reschedule'}
               </button>
             </form>
           </div>
+
         </div>
       </div>
     </div>

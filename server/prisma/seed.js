@@ -9,7 +9,7 @@ async function main() {
     where: { email: 'admin@calclone.com' },
     update: {},
     create: {
-      name: 'Alex Johnson',
+      name: 'Dheeraj Shahaul Syed',
       email: 'admin@calclone.com',
       timezone: 'Asia/Kolkata',
     },

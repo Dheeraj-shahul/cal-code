@@ -24,6 +24,7 @@ export const createBooking = (data) => api.post('/bookings', data)
 export const getBookings = (status) =>
   api.get('/bookings', { params: status ? { status } : {} })
 export const getBookingById = (id) => api.get(`/bookings/${id}`)
-export const cancelBooking = (id) => api.delete(`/bookings/${id}`)
+export const cancelBooking = (id, reason) => api.delete(`/bookings/${id}`, { data: { cancellationReason: reason || null } })
+export const rescheduleBooking = (id, data) => api.put(`/bookings/${id}/reschedule`, data)
 
 export default api
