@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "build": "npm install --prefix ../client && npm run build --prefix ../client && npx prisma generate && npx prisma migrate deploy",
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma generate && prisma migrate deploy",
     "seed": "node prisma/seed.js",
     "migrate": "npx prisma migrate dev"
   },
