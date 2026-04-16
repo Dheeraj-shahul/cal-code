@@ -375,41 +375,40 @@ export default function Availability() {
                    <span className="day-name">{day}</span>
                  </div>
                  
-                 <div className="schedule-times" style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                 <div className="schedule-times">
                    {slots[i]?.length > 0 ? (
-                     slots[i].map((slot, sIdx) => (
-                       <div key={sIdx} className="time-inputs-wrapper" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                         <div className="time-input">
-                           <select value={slot.startTime} onChange={(e) => updateTime(i, sIdx, 'startTime', e.target.value)}>
-                             {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                           </select>
-                         </div>
-                         <span style={{ color: 'var(--clr-muted)' }}>-</span>
-                         <div className="time-input">
-                           <select value={slot.endTime} onChange={(e) => updateTime(i, sIdx, 'endTime', e.target.value)}>
-                             {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                           </select>
-                         </div>
-                         
-                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
-                            {sIdx === 0 && (
-                               <>
-                                 <button className="icon-btn" onClick={() => addExtraSlot(i)} title="Add slot">
-                                    <i className="fa-solid fa-plus"></i>
+                     <>
+                        <div className="slots-list" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                           {slots[i].map((slot, sIdx) => (
+                              <div key={sIdx} className="time-inputs-wrapper">
+                                 <div className="time-input">
+                                    <select value={slot.startTime} onChange={(e) => updateTime(i, sIdx, 'startTime', e.target.value)}>
+                                       {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                    </select>
+                                 </div>
+                                 <span className="time-dash">-</span>
+                                 <div className="time-input">
+                                    <select value={slot.endTime} onChange={(e) => updateTime(i, sIdx, 'endTime', e.target.value)}>
+                                       {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                    </select>
+                                 </div>
+                                 
+                                 <button className="icon-btn remove-slot-btn" onClick={() => removeExtraSlot(i, sIdx)} title="Remove slot">
+                                    <i className="fa-regular fa-trash-can"></i>
                                  </button>
-                                 <button className="icon-btn" onClick={() => copyToAll(i)} title="Copy to all days">
-                                    <i className="fa-regular fa-copy"></i>
-                                 </button>
-                               </>
-                            )}
-                            {slots[i].length > 1 && (
-                               <button className="icon-btn" onClick={() => removeExtraSlot(i, sIdx)} title="Remove slot">
-                                  <i className="fa-regular fa-trash-can"></i>
-                               </button>
-                            )}
-                         </div>
-                       </div>
-                     ))
+                              </div>
+                           ))}
+                        </div>
+                        
+                        <div className="day-actions">
+                           <button className="icon-btn-sm-text" onClick={() => addExtraSlot(i)}>
+                              <i className="fa-solid fa-plus"></i> Add slot
+                           </button>
+                           <button className="icon-btn-sm-text" onClick={() => copyToAll(i)}>
+                              <i className="fa-regular fa-copy"></i> Copy to all
+                           </button>
+                        </div>
+                     </>
                    ) : (
                      <div style={{ height: 44, display: 'flex', alignItems: 'center' }}>
                         <span className="unavailable-text">Unavailable</span>

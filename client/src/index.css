@@ -1069,6 +1069,10 @@ input:checked + .slider:before { transform: translateX(16px); background-color: 
   align-items: center;
   gap: 12px;
 }
+.time-dash {
+  color: var(--clr-muted);
+  font-size: 14px;
+}
 .time-input input,
 .time-input select {
   background: transparent;
@@ -1079,6 +1083,12 @@ input:checked + .slider:before { transform: translateX(16px); background-color: 
   font-size: 13px;
   font-family: inherit;
   width: 104px;
+}
+.slot-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
 }
 .time-input select {
   appearance: none;
@@ -1105,6 +1115,39 @@ input:checked + .slider:before { transform: translateX(16px); background-color: 
   transition: color var(--transition);
 }
 .icon-btn:hover { color: var(--clr-text); }
+.remove-slot-btn {
+  margin-left: auto;
+  opacity: 0.6;
+}
+.remove-slot-btn:hover {
+  opacity: 1;
+  color: var(--clr-danger);
+}
+.day-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+.icon-btn-sm-text {
+  background: transparent;
+  border: none;
+  color: var(--clr-muted);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border-radius: var(--radius);
+  transition: all var(--transition);
+}
+.icon-btn-sm-text:hover {
+  color: var(--clr-text);
+  background: var(--clr-bg);
+}
 .unavailable-text {
   font-size: 14px; color: var(--clr-muted);
 }
@@ -1512,22 +1555,45 @@ input:checked + .slider:before { transform: translateX(16px); background-color: 
   .schedule-row {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
-    padding: 20px;
+    gap: 16px;
+    padding: 24px 20px;
   }
 
   .schedule-day {
     width: 100%;
+    margin-bottom: 4px;
     justify-content: space-between;
+  }
+
+  .schedule-times {
+    width: 100%;
   }
 
   .time-inputs-wrapper {
     width: 100%;
-    justify-content: space-between;
+    gap: 8px;
+    justify-content: flex-start;
   }
 
   .time-input input, .time-input select {
-    width: 110px;
+    width: 105px; 
+    font-size: 13px;
+    padding: 8px 4px;
+  }
+
+  .time-dash {
+    margin: 0 2px;
+  }
+
+  .remove-slot-btn {
+    margin-left: 8px;
+  }
+
+  .day-actions {
+    margin-top: 16px;
+    border-top: 1px solid var(--clr-border);
+    padding-top: 12px;
+    width: 100%;
   }
 
   /* Confirmation Page */
