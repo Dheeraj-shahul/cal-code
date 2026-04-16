@@ -79,8 +79,14 @@ export default function Availability() {
     setOverrides(s.overrides || [])
     
     const s_slots = {}
-    s.slots.forEach(sl => { s_slots[sl.dayOfWeek] = { enabled: true, startTime: sl.startTime, endTime: sl.endTime } })
-    DAYS.forEach((_, i) => { if (!s_slots[i]) s_slots[i] = { enabled: false, startTime: '09:00', endTime: '17:00' } })
+    // Initialize all days as empty arrays
+    DAYS.forEach((_, i) => s_slots[i] = [])
+    
+    // Fill from database slots
+    s.slots.forEach(sl => { 
+      s_slots[sl.dayOfWeek].push({ startTime: sl.startTime, endTime: sl.endTime })
+    })
+    
     setSlots(s_slots)
   }
 
@@ -107,15 +113,17 @@ export default function Availability() {
     finally { setSaving(false) }
   }
 
-  const updateTime = (day, field, value) => {
+  const updateTime = (day, slotIdx, field, value) => {
     setSlots((prev) => {
-      const newSlots = { ...prev }
-      const slot = { ...newSlots[day] }
+      const daySlots = [...prev[day]]
+      const slot = { ...daySlots[slotIdx] }
+      
       if (field === 'startTime') {
         const [oldSH, oldSM] = slot.startTime.split(':').map(Number)
         const [oldEH, oldEM] = slot.endTime.split(':').map(Number)
         const durationMins = (oldEH * 60 + oldEM) - (oldSH * 60 + oldSM)
         slot.startTime = value
+        
         if (durationMins > 0) {
           const [newSH, newSM] = value.split(':').map(Number)
           let newEndMins = (newSH * 60 + newSM) + durationMins
@@ -124,20 +132,87 @@ export default function Availability() {
           const newEM = newEndMins % 60
           slot.endTime = `${newEH.toString().padStart(2, '0')}:${newEM.toString().padStart(2, '0')}`
         }
-      } else { slot[field] = value }
-      newSlots[day] = slot
+      } else { 
+        slot[field] = value 
+      }
+      
+      daySlots[slotIdx] = slot
+      return { ...prev, [day]: daySlots }
+    })
+  }
+
+  const toggleDay = (day) => {
+    setSlots((prev) => {
+      const isCurrentlyEnabled = prev[day].length > 0
+      return {
+        ...prev,
+        [day]: isCurrentlyEnabled ? [] : [{ startTime: '09:00', endTime: '17:00' }]
+      }
+    })
+  }
+
+  const addExtraSlot = (day) => {
+    setSlots((prev) => {
+      const daySlots = [...prev[day]]
+      const lastSlot = daySlots[daySlots.length - 1]
+      
+      let newStart = '09:00'
+      let newEnd = '17:00'
+      
+      if (lastSlot) {
+        const [h, m] = lastSlot.endTime.split(':').map(Number)
+        let totalMins = h * 60 + m + 15 // Start 15 mins after last end
+        if (totalMins >= 23 * 60 + 45) totalMins = 0 // Wrap around safety
+        
+        const newH = Math.floor(totalMins / 60)
+        const newM = totalMins % 60
+        newStart = `${newH.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}`
+        
+        let endMins = totalMins + 60 // Default 1 hour
+        if (endMins >= 24 * 60) endMins = 23 * 60 + 45
+        const newEH = Math.floor(endMins / 60)
+        const newEM = endMins % 60
+        newEnd = `${newEH.toString().padStart(2, '0')}:${newEM.toString().padStart(2, '0')}`
+      }
+      
+      daySlots.push({ startTime: newStart, endTime: newEnd })
+      return { ...prev, [day]: daySlots }
+    })
+  }
+
+  const removeExtraSlot = (day, slotIdx) => {
+    setSlots((prev) => {
+      const daySlots = prev[day].filter((_, idx) => idx !== slotIdx)
+      return { ...prev, [day]: daySlots }
+    })
+  }
+
+  const copyToAll = (sourceDay) => {
+    if (!confirm('Copy this day\'s schedule to all other active days?')) return
+    setSlots((prev) => {
+      const sourceSchedule = prev[sourceDay]
+      const newSlots = { ...prev }
+      DAYS.forEach((_, i) => {
+        // Copy to all days, effectively setting the weekly template to match this day
+        newSlots[i] = JSON.parse(JSON.stringify(sourceSchedule))
+      })
       return newSlots
     })
   }
 
-  const toggleDay = (day) => { setSlots((prev) => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } })) }
-
   const handleSave = async (overrideIsDefault) => {
     const finalIsDefault = typeof overrideIsDefault === 'boolean' ? overrideIsDefault : isDefault;
     setSaving(true); setSuccess(false)
+    
     const slotsArr = Object.entries(slots)
-      .filter(([, s]) => s.enabled)
-      .map(([day, s]) => ({ dayOfWeek: parseInt(day), startTime: s.startTime, endTime: s.endTime }))
+      .flatMap(([day, daySlots]) => {
+         return daySlots.map(s => ({ 
+            dayOfWeek: parseInt(day), 
+            startTime: s.startTime, 
+            endTime: s.endTime 
+         }))
+      })
+
     try {
       await updateAvailability(selectedId, { name, timezone, isDefault: finalIsDefault, slots: slotsArr, overrides })
       setSuccess(true)
@@ -176,147 +251,174 @@ export default function Availability() {
           </button>
         </div>
         <div className="event-list-container">
-          {schedules.map(s => {
-             // Create a pure inline visual digest for the schedule slots
-             const activeSlots = s.slots || [];
-             let summaryLines = [];
-             if (activeSlots.length === 0) {
+             {schedules.map(s => {
+              // Group slots by day for summary
+              const slotsByDay = {};
+              (s.slots || []).forEach(sl => {
+                if (!slotsByDay[sl.dayOfWeek]) slotsByDay[sl.dayOfWeek] = [];
+                slotsByDay[sl.dayOfWeek].push(`${sl.startTime} - ${sl.endTime}`);
+              });
+
+              let summaryLines = [];
+              const activeDays = Object.keys(slotsByDay).map(Number).sort();
+              
+              if (activeDays.length === 0) {
                 summaryLines.push("Unavailable completely");
-             } else {
-                // Simplified grouping string for snapshot parity
-                // Extracting typical Mon-Fri chunks, skipping complex AST tree loops for visual mapping
-                const mapDaysIdx = activeSlots.map(x => x.dayOfWeek).sort();
-                let dayString = mapDaysIdx.length === 5 && mapDaysIdx[0] === 1 && mapDaysIdx[4] === 5 ? "Mon - Fri" : 
-                               mapDaysIdx.map(i => DAYS[i].substring(0,3)).join(', ');
-                const baseTime = `${activeSlots[0].startTime} - ${activeSlots[0].endTime}`;
-                summaryLines.push(`${dayString}, ${baseTime}`);
-             }
-
-             return (
-              <div key={s.id} className="event-list-item" style={{alignItems: 'center', padding: '16px 20px', cursor: 'pointer', position: 'relative'}} onClick={() => handleSelect(s)}>
-                 <div className="event-list-info" style={{ flex: 1 }}>
-                    <div className="event-list-title" style={{ gap: 8 }}>
-                       <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{s.name}</h3>
-                       {s.isDefault && <span style={{ background: '#3f3f46', fontSize: 11, padding: '2px 8px', borderRadius: 12, fontWeight: 500, color: '#ededed' }}>Default</span>}
-                    </div>
-                    
-                    <div style={{ fontSize: 13, color: 'var(--clr-muted)', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-                       {summaryLines.map((l, i) => <div key={i}>{l}</div>)}
-                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <i className="fa-solid fa-earth-americas" style={{ fontSize: 12 }}></i> {s.timezone}
-                       </div>
-                    </div>
-                 </div>
-
-                 <div className="event-list-actions" style={{ marginLeft: 16 }}>
-                    <div style={{ position: 'relative' }}>
-                       <button className="btn btn-icon btn-sm" title="Options" onClick={(e) => { e.stopPropagation(); }} style={{ padding: 6, width: 32, height: 32 }}>
-                          <i className="fa-solid fa-ellipsis" style={{ fontSize: 14 }}></i>
-                       </button>
-                    </div>
-                 </div>
-              </div>
-             );
-          })}
-        </div>
-      </div>
-    )
-  }
-
-  // EDIT MODE
-  return (
-    <div className="availability-page-container">
-      {/* Top Header layout */}
-      <div className="availability-header">
-        <div className="header-left">
-          <div className="back-arrow" onClick={() => setSelectedId(null)}>
-             <i className="fa-solid fa-arrow-left"></i>
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-               <input 
-                 className="header-title-input"
-                 value={name} 
-                 onChange={(e) => setName(e.target.value)} 
-                 style={{ background: 'transparent', border: 'none', color: 'var(--clr-text)', fontSize: 20, fontWeight: 700, outline: 'none', padding: 0 }} 
-               />
-               <i className="fa-solid fa-pen" style={{fontSize: 14, color: 'var(--clr-muted)', cursor: 'pointer'}} onClick={() => {
-                  const newName = window.prompt("Enter new schedule name:", name);
-                  if(newName && newName.trim() !== '') {
-                     setName(newName.trim());
-                  }
-               }}></i>
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--clr-muted)', marginTop: 4 }}>
-              Setup your weekly schedule
-            </p>
-          </div>
-        </div>
-        <div className="header-right">
-          <div className="toggle-container" style={{ gap: 8 }}>
-            <span style={{fontSize: 13, fontWeight: 500}}>Default</span>
-            <label className="switch" style={{ transform: 'scale(0.85)' }}>
-              <input 
-                type="checkbox" 
-                checked={isDefault} 
-                onChange={(e) => {
-                  if (e.target.checked) setShowDefaultModal(true);
-                  else setIsDefault(false);
-                }} 
-              />
-              <span className="slider round"></span>
-            </label>
-          </div>
-          <div className="divider"></div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="icon-btn-danger" onClick={handleDeleteSchedule} disabled={schedules.length === 1} title={schedules.length === 1 ? "Cannot delete the only schedule" : "Delete Schedule"}>
-               <i className="fa-regular fa-trash-can"></i>
-            </button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '8px 16px' }}>
-              {saving ? 'Saving...' : success ? <><i className="fa-solid fa-check"></i> Saved</> : 'Save'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Two Column Layout */}
-      <div className="availability-layout">
-        <div className="availability-main">
-          {/* Schedule Card */}
-          <div className="card schedule-card">
-            {DAYS.map((day, i) => (
-              <div key={i} className="schedule-row" style={{ borderBottom: i < 6 ? '1px solid var(--clr-border)' : 'none' }}>
-                <div className="schedule-day">
-                  <label className="switch">
-                    <input type="checkbox" checked={slots[i]?.enabled || false} onChange={() => toggleDay(i)} />
-                    <span className="slider round"></span>
-                  </label>
-                  <span className="day-name">{day}</span>
-                </div>
+              } else {
+                // Simplified display: Show first day's ranges or Mon-Fri if applicable
+                const dayString = activeDays.length === 5 && activeDays[0] === 1 && activeDays[4] === 5 ? "Mon - Fri" : 
+                                 activeDays.map(i => DAYS[i].substring(0,3)).join(', ');
                 
-                <div className="schedule-times">
-                  {slots[i]?.enabled ? (
-                    <div className="time-inputs-wrapper">
-                      <div className="time-input">
-                        <select value={slots[i].startTime} onChange={(e) => updateTime(i, 'startTime', e.target.value)}>
-                          {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                        </select>
-                      </div>
-                      <span style={{ color: 'var(--clr-muted)' }}>-</span>
-                      <div className="time-input">
-                        <select value={slots[i].endTime} onChange={(e) => updateTime(i, 'endTime', e.target.value)}>
-                          {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                        </select>
-                      </div>
-                      <button className="icon-btn"><i className="fa-solid fa-plus"></i></button>
-                    </div>
-                  ) : (
-                    <span className="unavailable-text">Unavailable</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+                const firstDaySlots = slotsByDay[activeDays[0]];
+                summaryLines.push(`${dayString}, ${firstDaySlots[0]}${firstDaySlots.length > 1 ? ` (+${firstDaySlots.length - 1} more)` : ''}`);
+              }
+
+              return (
+               <div key={s.id} className="event-list-item" style={{alignItems: 'center', padding: '16px 20px', cursor: 'pointer', position: 'relative'}} onClick={() => handleSelect(s)}>
+                  <div className="event-list-info" style={{ flex: 1 }}>
+                     <div className="event-list-title" style={{ gap: 8 }}>
+                        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{s.name}</h3>
+                        {s.isDefault && <span style={{ background: '#3f3f46', fontSize: 11, padding: '2px 8px', borderRadius: 12, fontWeight: 500, color: '#ededed' }}>Default</span>}
+                     </div>
+                     
+                     <div style={{ fontSize: 13, color: 'var(--clr-muted)', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                        {summaryLines.map((l, i) => <div key={i}>{l}</div>)}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                           <i className="fa-solid fa-earth-americas" style={{ fontSize: 12 }}></i> {s.timezone}
+                        </div>
+                     </div>
+                  </div>
+
+                  <div className="event-list-actions" style={{ marginLeft: 16 }}>
+                     <div style={{ position: 'relative' }}>
+                        <button className="btn btn-icon btn-sm" title="Options" onClick={(e) => { e.stopPropagation(); }} style={{ padding: 6, width: 32, height: 32 }}>
+                           <i className="fa-solid fa-ellipsis" style={{ fontSize: 14 }}></i>
+                        </button>
+                     </div>
+                  </div>
+               </div>
+              );
+           })}
+         </div>
+       </div>
+     )
+   }
+ 
+   // EDIT MODE
+   return (
+     <div className="availability-page-container">
+       {/* Top Header layout */}
+       <div className="availability-header">
+         <div className="header-left">
+           <div className="back-arrow" onClick={() => setSelectedId(null)}>
+              <i className="fa-solid fa-arrow-left"></i>
+           </div>
+           <div>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input 
+                  className="header-title-input"
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)} 
+                  style={{ background: 'transparent', border: 'none', color: 'var(--clr-text)', fontSize: 20, fontWeight: 700, outline: 'none', padding: 0 }} 
+                />
+                <i className="fa-solid fa-pen" style={{fontSize: 14, color: 'var(--clr-muted)', cursor: 'pointer'}} onClick={() => {
+                   const newName = window.prompt("Enter new schedule name:", name);
+                   if(newName && newName.trim() !== '') {
+                      setName(newName.trim());
+                   }
+                }}></i>
+             </div>
+             <p style={{ fontSize: 13, color: 'var(--clr-muted)', marginTop: 4 }}>
+               Setup your weekly schedule
+             </p>
+           </div>
+         </div>
+         <div className="header-right">
+           <div className="toggle-container" style={{ gap: 8 }}>
+             <span style={{fontSize: 13, fontWeight: 500}}>Default</span>
+             <label className="switch" style={{ transform: 'scale(0.85)' }}>
+               <input 
+                 type="checkbox" 
+                 checked={isDefault} 
+                 onChange={(e) => {
+                   if (e.target.checked) setShowDefaultModal(true);
+                   else setIsDefault(false);
+                 }} 
+               />
+               <span className="slider round"></span>
+             </label>
+           </div>
+           <div className="divider"></div>
+           <div style={{ display: 'flex', gap: 8 }}>
+             <button className="icon-btn-danger" onClick={handleDeleteSchedule} disabled={schedules.length === 1} title={schedules.length === 1 ? "Cannot delete the only schedule" : "Delete Schedule"}>
+                <i className="fa-regular fa-trash-can"></i>
+             </button>
+             <button className="btn btn-primary" onClick={() => handleSave()} disabled={saving} style={{ padding: '8px 16px' }}>
+               {saving ? 'Saving...' : success ? <><i className="fa-solid fa-check"></i> Saved</> : 'Save'}
+             </button>
+           </div>
+         </div>
+       </div>
+ 
+       {/* Two Column Layout */}
+       <div className="availability-layout">
+         <div className="availability-main">
+           {/* Schedule Card */}
+           <div className="card schedule-card">
+             {DAYS.map((day, i) => (
+               <div key={i} className="schedule-row" style={{ borderBottom: i < 6 ? '1px solid var(--clr-border)' : 'none', alignItems: 'flex-start' }}>
+                 <div className="schedule-day" style={{ marginTop: 12 }}>
+                   <label className="switch">
+                     <input type="checkbox" checked={slots[i]?.length > 0} onChange={() => toggleDay(i)} />
+                     <span className="slider round"></span>
+                   </label>
+                   <span className="day-name">{day}</span>
+                 </div>
+                 
+                 <div className="schedule-times" style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                   {slots[i]?.length > 0 ? (
+                     slots[i].map((slot, sIdx) => (
+                       <div key={sIdx} className="time-inputs-wrapper" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                         <div className="time-input">
+                           <select value={slot.startTime} onChange={(e) => updateTime(i, sIdx, 'startTime', e.target.value)}>
+                             {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                           </select>
+                         </div>
+                         <span style={{ color: 'var(--clr-muted)' }}>-</span>
+                         <div className="time-input">
+                           <select value={slot.endTime} onChange={(e) => updateTime(i, sIdx, 'endTime', e.target.value)}>
+                             {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                           </select>
+                         </div>
+                         
+                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+                            {sIdx === 0 && (
+                               <>
+                                 <button className="icon-btn" onClick={() => addExtraSlot(i)} title="Add slot">
+                                    <i className="fa-solid fa-plus"></i>
+                                 </button>
+                                 <button className="icon-btn" onClick={() => copyToAll(i)} title="Copy to all days">
+                                    <i className="fa-regular fa-copy"></i>
+                                 </button>
+                               </>
+                            )}
+                            {slots[i].length > 1 && (
+                               <button className="icon-btn" onClick={() => removeExtraSlot(i, sIdx)} title="Remove slot">
+                                  <i className="fa-regular fa-trash-can"></i>
+                               </button>
+                            )}
+                         </div>
+                       </div>
+                     ))
+                   ) : (
+                     <div style={{ height: 44, display: 'flex', alignItems: 'center' }}>
+                        <span className="unavailable-text">Unavailable</span>
+                     </div>
+                   )}
+                 </div>
+               </div>
+             ))}
+           </div>
 
           {/* Date Overrides Card */}
           <div className="card overrides-card" style={{marginTop: 24}}>

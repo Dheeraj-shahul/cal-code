@@ -34,71 +34,76 @@ async function getAvailableSlots(eventTypeId, dateStr) {
   // Parse the requested date in the host timezone
   const requestedDate = parse(dateStr, 'yyyy-MM-dd', new Date());
   
-  // Check for override on this specific date
-  const override = availability.overrides.find(o => o.date === dateStr);
-  let startH, startM, endH, endM;
+  // Collect all applicable availability windows for this date
+  const windows = []
+  const override = availability.overrides.find(o => o.date === dateStr)
 
   if (override) {
     // If override exists but has no start time, they marked it as "Unavailable (All day)"
-    if (!override.startTime || !override.endTime) return [];
-    [startH, startM] = override.startTime.split(':').map(Number);
-    [endH, endM] = override.endTime.split(':').map(Number);
+    if (override.startTime && override.endTime) {
+      windows.push({ start: override.startTime, end: override.endTime })
+    }
   } else {
-    // Use regular day slots mapping
-    const dayOfWeek = requestedDate.getDay(); // 0=Sun...6=Sat
-    const daySlot = availability.slots.find((s) => s.dayOfWeek === dayOfWeek);
-    if (!daySlot) return [];
-    [startH, startM] = daySlot.startTime.split(':').map(Number);
-    [endH, endM] = daySlot.endTime.split(':').map(Number);
+    // Use regular day slots mapping (collect all shifts for this day)
+    const dayOfWeek = requestedDate.getDay() // 0=Sun...6=Sat
+    const daySlots = availability.slots.filter(s => s.dayOfWeek === dayOfWeek)
+    daySlots.forEach(ds => windows.push({ start: ds.startTime, end: ds.endTime }))
   }
 
-  // Build all possible time slots on this day
-  const duration = eventType.durationMinutes;
-  const buffer = eventType.bufferMinutes || 0;
-  const step = duration + buffer;
+  if (windows.length === 0) return []
 
-  // Build window start/end in host timezone
-  const windowStartLocal = new Date(requestedDate);
-  windowStartLocal.setHours(startH, startM, 0, 0);
-  const windowEndLocal = new Date(requestedDate);
-  windowEndLocal.setHours(endH, endM, 0, 0);
+  // Fetch existing (non-cancelled) bookings for the entire day to check for overlaps
+  // We use the start of the day and end of the day in host timezone to bound the search
+  const dayStartLocal = new Date(requestedDate)
+  dayStartLocal.setHours(0, 0, 0, 0)
+  const dayEndLocal = new Date(requestedDate)
+  dayEndLocal.setHours(23, 59, 59, 999)
 
-  // Convert to UTC for DB comparison
-  const windowStartUTC = fromZonedTime(windowStartLocal, timezone);
-  const windowEndUTC = fromZonedTime(windowEndLocal, timezone);
+  const dayStartUTC = fromZonedTime(dayStartLocal, timezone)
+  const dayEndUTC = fromZonedTime(dayEndLocal, timezone)
 
-  // Fetch existing (non-cancelled) bookings that overlap this window for ALL event types under this user
   const existingBookings = await prisma.booking.findMany({
     where: {
-      eventType: {
-        userId: eventType.userId
-      },
+      eventType: { userId: eventType.userId },
       status: { not: 'CANCELLED' },
-      startTime: { lt: windowEndUTC },
-      endTime: { gt: windowStartUTC },
+      startTime: { lt: dayEndUTC },
+      endTime: { gt: dayStartUTC },
     },
-  });
+  })
 
-  // Generate slots
-  const slots = [];
-  let cursor = new Date(windowStartUTC);
+  const duration = eventType.durationMinutes
+  const buffer = eventType.bufferMinutes || 0
+  const step = duration + buffer
+  const slots = []
 
-  while (true) {
-    const slotEnd = addMinutes(cursor, duration);
-    if (slotEnd > windowEndUTC) break;
+  // Generate slots for each window
+  for (const window of windows) {
+    const [startH, startM] = window.start.split(':').map(Number)
+    const [endH, endM] = window.end.split(':').map(Number)
 
-    // Check for overlap with existing bookings
-    const hasOverlap = existingBookings.some(
-      (b) => cursor < b.endTime && slotEnd > b.startTime
-    );
+    const windowStartLocal = new Date(requestedDate)
+    windowStartLocal.setHours(startH, startM, 0, 0)
+    const windowEndLocal = new Date(requestedDate)
+    windowEndLocal.setHours(endH, endM, 0, 0)
 
-    const isFuture = cursor > new Date();
+    const windowStartUTC = fromZonedTime(windowStartLocal, timezone)
+    const windowEndUTC = fromZonedTime(windowEndLocal, timezone)
 
-    if (!hasOverlap && isFuture) {
-      slots.push({ start: cursor.toISOString(), end: slotEnd.toISOString() });
+    let cursor = new Date(windowStartUTC)
+    while (true) {
+      const slotEnd = addMinutes(cursor, duration)
+      if (slotEnd > windowEndUTC) break
+
+      // Check for overlap with existing bookings
+      const hasOverlap = existingBookings.some(b => cursor < b.endTime && slotEnd > b.startTime)
+      const isFuture = cursor > new Date()
+
+      if (!hasOverlap && isFuture) {
+        slots.push({ start: cursor.toISOString(), end: slotEnd.toISOString() })
+      }
+
+      cursor = addMinutes(cursor, step)
     }
-
-    cursor = addMinutes(cursor, step);
   }
 
   return slots;
